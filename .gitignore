@@ -1,0 +1,16 @@
+# Node.js dependencies
+node_modules/
+dist/
+
+# Python
+__pycache__/
+*.pyc
+
+# Env files
+.env
+
+# Logs
+*.log
+
+# macOS system files
+.DS_Store
