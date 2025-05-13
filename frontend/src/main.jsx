@@ -5,9 +5,9 @@ import { BrowserRouter, Routes, Route } from 'react-router-dom'
 import Home from './pages/home'
 
 // 🔐 Auth Pages
-import Register from './pages/auth/Register'
-import Login from './pages/auth/Login'
-import ForgotPassword from './pages/auth/ForgotPassword'
+import Register from './pages/auth/Register';
+import Login from './pages/auth/Login';
+import ForgotPassword from './pages/auth/ForgotPassword';
 
 
 // ⚠️ System Pages
@@ -15,6 +15,13 @@ import NotFound from './pages/system/NotFound';
 import ServerError from './pages/system/ServerError';
 import Unauthorized from './pages/system/Unauthorized';
 import Maintenance from './pages/system/Maintenance';
+
+import BacktestingEngine from './pages/core/Backtesting';
+import BacktestingResult from './pages/core/BacktestingResult';
+
+
+
+
 
 import './index.css'
 
@@ -28,12 +35,19 @@ ReactDOM.createRoot(document.getElementById('root')).render(
         <Route path="/log-in" element={<Login />} />
         <Route path="/forgot-password" element={<ForgotPassword />} />
 
+        <Route path="/backtest" element={<BacktestingEngine />} />
+        <Route path="/backtest-result" element={<BacktestingResult />} />
+
         <Route path="/500" element={<ServerError />} />
         <Route path="/unauthorized" element={<Unauthorized />} />
         <Route path="/maintenance" element={<Maintenance />} />
         <Route path="*" element={<NotFound />} />
+
+        
+        
+
         {/* You can add more routes later */}
       </Routes>
-    </BrowserRouter>
+    </BrowserRouter>  
   </React.StrictMode>
 )

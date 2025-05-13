@@ -32,6 +32,7 @@ import OptionsPricing from './pages/core/OptionsPricing';
 import RiskAnalytics from './pages/core/RiskAnalytics';
 import MLStudio from './pages/core/MLStudio';
 import StrategyLab from './pages/core/StrategyLab';
+import BacktestingResult from './pages/core/BacktestingResult';
 
 // 📊 Analytics Pages
 import Market from './pages/analytics/Market';
@@ -72,6 +73,7 @@ function App() {
         <Route path="/options-pricing" element={<OptionsPricing />} />
         <Route path="/risk-analytics" element={<RiskAnalytics />} />
         <Route path="/ml-studio" element={<MLStudio />} />
+        <Route path="/backtest-result" element={<BacktestingResult />} />
 
         {/* 📊 Analytics */}
         <Route path="/market" element={<Market />} />
