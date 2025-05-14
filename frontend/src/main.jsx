@@ -18,6 +18,8 @@ import Maintenance from './pages/system/Maintenance';
 
 import BacktestingEngine from './pages/core/Backtesting';
 import BacktestingResult from './pages/core/BacktestingResult';
+import AlphaSignal from './pages/core/AlphaSignals';
+import AlphaSignalResults from './pages/core/AlphaSignalsResults';
 
 
 
@@ -37,6 +39,8 @@ ReactDOM.createRoot(document.getElementById('root')).render(
 
         <Route path="/backtest" element={<BacktestingEngine />} />
         <Route path="/backtest-result" element={<BacktestingResult />} />
+        <Route path="/alpha-signals" element={<AlphaSignal />} />
+        <Route path="/alpha-signals-results" element={<AlphaSignalResults />} />
 
         <Route path="/500" element={<ServerError />} />
         <Route path="/unauthorized" element={<Unauthorized />} />
