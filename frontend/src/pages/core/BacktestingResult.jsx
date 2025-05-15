@@ -4,6 +4,10 @@ import { motion } from "framer-motion";
 import { Button } from "@/components/Button";
 import Papa from "papaparse";
 
+
+import { useNavigate } from "react-router-dom";
+import Header from "../../components/header";
+
 export default function BacktestResults() {
   const [metrics, setMetrics] = useState(null);
   const [equityCurve, setEquityCurve] = useState([]);
@@ -50,8 +54,16 @@ export default function BacktestResults() {
     link.click();
   };
 
+    const navigate = useNavigate();
+  
+    const handleRunBacktestResult = () => {
+      
+      navigate("/backtest");
+    };
+
   return (
     <div className="bg-[#0B1120] min-h-screen px-8 py-12 text-white">
+        <Header showHome />
       <motion.h1
         className="text-4xl font-bold mb-10 text-center"
         initial={{ opacity: 0, y: -20 }}
@@ -118,6 +130,19 @@ export default function BacktestResults() {
           </table>
         </div>
       </div>
+
+        <motion.div
+                  className="text-center mt-12"
+                  initial={{ opacity: 0, scale: 0.9 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  transition={{ delay: 0.6 }}
+                >
+                  <Button
+                   onClick={handleRunBacktestResult}
+                   className="bg-gradient-to-r from-blue-600 to-purple-600 text-white px-8 py-3 text-lg rounded-xl hover:scale-105 transition-transform shadow-lg">
+                    Re-Run Backtest 🚀
+                  </Button>
+                </motion.div>
     </div>
   );
 }

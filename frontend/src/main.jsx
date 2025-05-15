@@ -20,6 +20,8 @@ import BacktestingEngine from './pages/core/Backtesting';
 import BacktestingResult from './pages/core/BacktestingResult';
 import AlphaSignal from './pages/core/AlphaSignals';
 import AlphaSignalResults from './pages/core/AlphaSignalsResults';
+import PortfolioOptimizer from './pages/core/Portfolio';
+import PortfolioOptimizerResults from './pages/core/PortfolioResults';
 
 
 
@@ -41,6 +43,8 @@ ReactDOM.createRoot(document.getElementById('root')).render(
         <Route path="/backtest-result" element={<BacktestingResult />} />
         <Route path="/alpha-signals" element={<AlphaSignal />} />
         <Route path="/alpha-signals-results" element={<AlphaSignalResults />} />
+        <Route path="/portfolio" element={<PortfolioOptimizer />} />
+        <Route path="/portfolio-results" element={<PortfolioOptimizerResults />} />
 
         <Route path="/500" element={<ServerError />} />
         <Route path="/unauthorized" element={<Unauthorized />} />

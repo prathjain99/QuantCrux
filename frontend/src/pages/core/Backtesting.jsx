@@ -1,9 +1,12 @@
 
 import React, { useState } from "react";
+import Header from "@/components/header";
 import { motion } from "framer-motion";
 import { Button } from "@/components/button";
 import Slider from "@/components/slider";
 import Input from "@/components/input";
+import { Card, CardContent } from "@/components/card";
+
 import { useNavigate } from "react-router-dom";
 
 export default function Backtesting() {
@@ -42,6 +45,7 @@ export default function Backtesting() {
 
   return (
     <div className="bg-[#0B1120] min-h-screen px-6 py-10 text-gray-100">
+        <Header showHome />
       <motion.h1
         className="text-4xl font-bold text-center mb-10 text-white"
         initial={{ opacity: 0, y: -20 }}
@@ -51,8 +55,18 @@ export default function Backtesting() {
         Configure Strategy Backtest
       </motion.h1>
 
+      {/* <div className="max-w-5xl mx-auto grid grid-cols-1 md:grid-cols-2 gap-8"> */}
       <div className="max-w-5xl mx-auto grid grid-cols-1 md:grid-cols-2 gap-8">
+              {/* LEFT CARD */}
+              <motion.div
+                initial={{ opacity: 0, x: -20 }}
+                animate={{ opacity: 1, x: 0 }}
+                transition={{ delay: 0.2, duration: 0.6 }}
+              >
+
         {/* Strategy Configuration */}
+        <Card className="bg-[#1C2433] rounded-2xl shadow-lg">
+            <CardContent className="space-y-5 py-6">
         <div className="space-y-6">
           <h2 className="text-xl font-semibold mb-2">Strategy Type</h2>
           <select name="strategyType" value={form.strategyType} onChange={handleChange} className="w-full px-4 py-2 rounded-md bg-[#1C2433]">
@@ -91,8 +105,19 @@ export default function Backtesting() {
             <Input label="To" type="date" name="toDate" value={form.toDate} onChange={handleChange} />
           </div>
         </div>
-
-    
+         </CardContent>
+                  </Card>
+                  </motion.div>
+        
+        
+ 
+              <motion.div
+                initial={{ opacity: 0, x: -20 }}
+                animate={{ opacity: 1, x: 0 }}
+                transition={{ delay: 0.2, duration: 0.6 }}
+              >
+      <Card className="bg-[#1C2433] rounded-2xl shadow-lg">
+            <CardContent className="space-y-5 py-6">
         <div className="space-y-6">
     <h2 className="text-xl font-semibold">Strategy Parameters</h2>
     <Slider label="Lookback Period" min={5} max={100} step={1} value={form.lookback} onChange={(v) => setForm({ ...form, lookback: v })} />
@@ -117,8 +142,19 @@ export default function Backtesting() {
     </select>
   </div>
 </div>
+</CardContent>
+</Card>
+</motion.div>
+</div>
 
-
+<div className="max-w-5xl mx-auto grid grid-cols-1 md:grid gap-8 py-6">
+ <motion.div
+                initial={{ opacity: 0, x: -20 }}
+                animate={{ opacity: 1, x: 0 }}
+                transition={{ delay: 0.2, duration: 0.6 }}
+              >
+<Card className="bg-[#1C2433] rounded-2xl shadow-lg">
+            <CardContent className="space-y-5 py-6">
         {/* Costs & Capital */}
         <div className="col-span-1 md:col-span-2 mt-10 space-y-4">
           <h2 className="text-xl font-semibold">Capital & Costs</h2>
@@ -129,13 +165,25 @@ export default function Backtesting() {
             <Slider label="Transaction Cost (%)" min={0} max={1} step={0.01} value={form.transactionCost} onChange={(v) => setForm({ ...form, transactionCost: v })} />
           </div>
         </div>
+        </CardContent>
+        </Card>
+        </motion.div>
       </div>
 
-      <div className="mt-10 flex justify-center">
-        <Button onClick={handleRunBacktest} className="bg-blue-600 hover:bg-blue-700">
-          🚀 Run Backtest
-        </Button>
-      </div>
+     
+          <motion.div
+            className="text-center mt-12"
+            initial={{ opacity: 0, scale: 0.9 }}
+            animate={{ opacity: 1, scale: 1 }}
+            transition={{ delay: 0.6 }}
+          >
+            <Button
+             onClick={handleRunBacktest}
+             className="bg-gradient-to-r from-blue-600 to-purple-600 text-white px-8 py-3 text-lg rounded-xl hover:scale-105 transition-transform shadow-lg">
+              Run Backtest 🚀
+            </Button>
+          </motion.div>
+
     </div>
   );
 }

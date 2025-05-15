@@ -5,6 +5,7 @@ import { Button } from "@/components/button";
 import { motion } from "framer-motion";
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from "recharts";
 import Table from "@/components/table"; // Assuming you're using a Table component for displaying data
+import Header from "../../components/header";
 
 export default function AlphaSignalResults() {
   const [signalResults, setSignalResults] = useState([]);
@@ -39,6 +40,7 @@ export default function AlphaSignalResults() {
 
   return (
     <div className="min-h-screen bg-[#0B1120] px-6 md:px-24 py-14 text-[#E2E8F0] font-sans">
+        <Header showHome />
       <motion.div
         initial={{ opacity: 0, y: 30 }}
         animate={{ opacity: 1, y: 0 }}

@@ -34,6 +34,7 @@ import MLStudio from './pages/core/MLStudio';
 import StrategyLab from './pages/core/StrategyLab';
 import BacktestingResult from './pages/core/BacktestingResult';
 import AlphaSignalResults from './pages/core/AlphaSignalsResults';
+import PortfolioOptimizerResults from './pages/core/PortfolioResults';
 
 // 📊 Analytics Pages
 import Market from './pages/analytics/Market';
@@ -76,6 +77,7 @@ function App() {
         <Route path="/ml-studio" element={<MLStudio />} />
         <Route path="/backtest-result" element={<BacktestingResult />} />
         <Route path="/alpha-signals-results" element={<AlphaSignalResults />} />
+        <Route path="/portfolio-results" element={<PortfolioOptimizerResults />} />
 
         {/* 📊 Analytics */}
         <Route path="/market" element={<Market />} />
