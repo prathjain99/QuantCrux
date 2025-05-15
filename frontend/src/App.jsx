@@ -35,6 +35,7 @@ import StrategyLab from './pages/core/StrategyLab';
 import BacktestingResult from './pages/core/BacktestingResult';
 import AlphaSignalResults from './pages/core/AlphaSignalsResults';
 import PortfolioOptimizerResults from './pages/core/PortfolioResults';
+import RiskAnalyticsResults from './pages/core/RiskAnalyticsResults';
 
 // 📊 Analytics Pages
 import Market from './pages/analytics/Market';
@@ -78,6 +79,7 @@ function App() {
         <Route path="/backtest-result" element={<BacktestingResult />} />
         <Route path="/alpha-signals-results" element={<AlphaSignalResults />} />
         <Route path="/portfolio-results" element={<PortfolioOptimizerResults />} />
+        <Route path="/risk-analytics-results" element={<RiskAnalyticsResults />} />
 
         {/* 📊 Analytics */}
         <Route path="/market" element={<Market />} />

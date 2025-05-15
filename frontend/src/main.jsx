@@ -22,6 +22,9 @@ import AlphaSignal from './pages/core/AlphaSignals';
 import AlphaSignalResults from './pages/core/AlphaSignalsResults';
 import PortfolioOptimizer from './pages/core/Portfolio';
 import PortfolioOptimizerResults from './pages/core/PortfolioResults';
+import RiskAnalytics from './pages/core/RiskAnalytics';
+import RiskAnalyticsResults from './pages/core/RiskAnalyticsResults';
+
 
 
 
@@ -45,6 +48,8 @@ ReactDOM.createRoot(document.getElementById('root')).render(
         <Route path="/alpha-signals-results" element={<AlphaSignalResults />} />
         <Route path="/portfolio" element={<PortfolioOptimizer />} />
         <Route path="/portfolio-results" element={<PortfolioOptimizerResults />} />
+        <Route path="/risk-analytics" element={<RiskAnalytics />} />
+        <Route path="/risk-analytics-results" element={<RiskAnalyticsResults />} />
 
         <Route path="/500" element={<ServerError />} />
         <Route path="/unauthorized" element={<Unauthorized />} />
