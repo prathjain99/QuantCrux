@@ -24,7 +24,7 @@ import ForgotPassword from './pages/auth/ForgotPassword';
 // 🏠 Core Pages
 import Home from './pages/home';
 import Dashboard from './pages/core/Dashboard';
-import StrategyBuilder from './pages/core/StrategyBuilder';
+import RegimeDetection from './pages/core/RegimeDetection';
 import Backtesting from './pages/core/Backtesting';
 import AlphaSignals from './pages/core/AlphaSignals';
 import Portfolio from './pages/core/Portfolio';
@@ -37,6 +37,7 @@ import AlphaSignalResults from './pages/core/AlphaSignalsResults';
 import PortfolioOptimizerResults from './pages/core/PortfolioResults';
 import RiskAnalyticsResults from './pages/core/RiskAnalyticsResults';
 import OptionsPricingResults from './pages/core/OptionsPricingResults';
+import RegimeDetectionResults from './pages/core/RegimeDetectionResults';
 
 // 📊 Analytics Pages
 import Market from './pages/analytics/Market';
@@ -70,7 +71,7 @@ function App() {
         <Route path="/" element={<Home />} />
         <Route path="/dashboard" element={<Dashboard />} />
         <Route path="/strategy-lab" element={<StrategyLab/>} />
-        <Route path="/strategy-builder" element={<StrategyBuilder />} />
+        <Route path="/regime-detection" element={<RegimeDetection />} />
         <Route path="/backtest" element={<Backtesting />} />
         <Route path="/alpha-signals" element={<AlphaSignals />} />
         <Route path="/portfolio" element={<Portfolio />} />

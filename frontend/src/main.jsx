@@ -26,6 +26,8 @@ import RiskAnalytics from './pages/core/RiskAnalytics';
 import RiskAnalyticsResults from './pages/core/RiskAnalyticsResults';
 import OptionsPricing from './pages/core/OptionsPricing';
 import OptionsPricingResults from './pages/core/OptionsPricingResults';
+import RegimeDetection from './pages/core/RegimeDetection';
+import RegimeDetectionResults from './pages/core/RegimeDetectionResults';
 
 
 
@@ -54,6 +56,8 @@ ReactDOM.createRoot(document.getElementById('root')).render(
         <Route path="/risk-analytics-results" element={<RiskAnalyticsResults />} />
         <Route path="/options-pricing" element={<OptionsPricing />} />
         <Route path="/options-pricing-results" element={<OptionsPricingResults />} />
+        <Route path="/regime-detection" element={<RegimeDetection />} />
+        <Route path="/regime-detection-results" element={<RegimeDetectionResults />} />
 
         <Route path="/500" element={<ServerError />} />
         <Route path="/unauthorized" element={<Unauthorized />} />
