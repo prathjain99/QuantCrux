@@ -28,6 +28,9 @@ import OptionsPricing from './pages/core/OptionsPricing';
 import OptionsPricingResults from './pages/core/OptionsPricingResults';
 import RegimeDetection from './pages/core/RegimeDetection';
 import RegimeDetectionResults from './pages/core/RegimeDetectionResults';
+import Dashboard from './pages/core/Dashboard';
+import SessionDetails from './pages/utility/SessionDetails';
+import SessionCompare from './pages/analytics/ModelComparison';
 
 
 
@@ -58,6 +61,11 @@ ReactDOM.createRoot(document.getElementById('root')).render(
         <Route path="/options-pricing-results" element={<OptionsPricingResults />} />
         <Route path="/regime-detection" element={<RegimeDetection />} />
         <Route path="/regime-detection-results" element={<RegimeDetectionResults />} />
+        <Route path="dashboard/session-details" element={<SessionDetails />} />
+
+        <Route path="/dashboard" element={<Dashboard />} />
+        
+        <Route path="dashboard/model-comparison" element={<SessionCompare />} />
 
         <Route path="/500" element={<ServerError />} />
         <Route path="/unauthorized" element={<Unauthorized />} />

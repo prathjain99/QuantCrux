@@ -42,7 +42,8 @@ import RegimeDetectionResults from './pages/core/RegimeDetectionResults';
 // 📊 Analytics Pages
 import Market from './pages/analytics/Market';
 import StrategyResults from './pages/analytics/StrategyResults';
-import ModelComparison from './pages/analytics/ModelComparison';
+
+import SessionCompare from './pages/analytics/ModelComparison';
 
 // 📁 Utility Pages
 import Docs from './pages/utility/Docs';
@@ -51,6 +52,7 @@ import AdminPanel from './pages/utility/AdminPanel';
 import DataImport from './pages/utility/DataImport';
 import CorrelationMatrix from './pages/utility/CorrelationMatrix';
 import Marketplace from './pages/utility/Marketplace';
+import SessionDetails from './pages/utility/SessionDetails';
 
 // ⚠️ System Pages
 import NotFound from './pages/system/NotFound';
@@ -83,11 +85,13 @@ function App() {
         <Route path="/portfolio-results" element={<PortfolioOptimizerResults />} />
         <Route path="/risk-analytics-results" element={<RiskAnalyticsResults />} />
         <Route path="/options-pricing-results" element={<OptionsPricingResults />} />
+        <Route path="/regime-detection-results" element={<RegimeDetectionResults />} />
+        
 
         {/* 📊 Analytics */}
         <Route path="/market" element={<Market />} />
         <Route path="/strategy-results" element={<StrategyResults />} />
-        <Route path="/model-comparison" element={<ModelComparison />} />
+        <Route path="dashboard/model-comparison" element={<SessionCompare />} />
 
         {/* 📁 Utility */}
         <Route path="/docs" element={<Docs />} />
@@ -96,6 +100,7 @@ function App() {
         <Route path="/data-import" element={<DataImport />} />
         <Route path="/correlation-matrix" element={<CorrelationMatrix />} />
         <Route path="/marketplace" element={<Marketplace />} />
+        <Route path="/session-details" element={<SessionDetails />} />
 
         {/* ⚠️ System */}
         <Route path="/500" element={<ServerError />} />
