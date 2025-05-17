@@ -1,5 +1,3 @@
-
-
 import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import Input from "@/components/input";
@@ -7,6 +5,25 @@ import { Button } from "@/components/button";
 import { Card, CardContent } from "@/components/card";
 import { motion } from "framer-motion";
 import Header from "../../components/header";
+
+// Small reusable Checkbox component
+function Checkbox({ id, label, checked, onChange }) {
+  return (
+    <div className="flex items-center space-x-3">
+      <input
+        type="checkbox"
+        id={id}
+        name={id}
+        checked={checked}
+        onChange={onChange}
+        className="accent-blue-600"
+      />
+      <label htmlFor={id} className="text-sm font-medium text-white">
+        {label}
+      </label>
+    </div>
+  );
+}
 
 export default function PortfolioOptimizer() {
   const navigate = useNavigate();
@@ -28,17 +45,18 @@ export default function PortfolioOptimizer() {
     "Maximize Return",
   ];
 
-  const optimizationMethods = [
-    "Mean-Variance",
-    "Black-Litterman",
-    "Risk Parity",
-  ];
+  const optimizationMethods = ["Mean-Variance", "Black-Litterman", "Risk Parity"];
 
   const handleChange = (e) => {
     const { name, type, value, checked } = e.target;
     setForm((prev) => ({
       ...prev,
-      [name]: type === "checkbox" ? checked : value,
+      [name]:
+        type === "checkbox"
+          ? checked
+          : type === "number"
+          ? value === "" ? "" : Number(value)
+          : value,
     }));
   };
 
@@ -55,11 +73,10 @@ export default function PortfolioOptimizer() {
         transition={{ duration: 0.6 }}
         className="text-center mb-10"
       >
-        <h1 className="text-4xl font-bold text-white mb-4">
-          Portfolio Optimizer
-        </h1>
+        <h1 className="text-4xl font-bold text-white mb-4">Portfolio Optimizer</h1>
         <p className="text-gray-400 max-w-2xl mx-auto">
-          Customize your portfolio preferences and let our engine optimize it based on risk, return, and constraints.
+          Customize your portfolio preferences and let our engine optimize it based on risk,
+          return, and constraints.
         </p>
       </motion.div>
 
@@ -93,19 +110,12 @@ export default function PortfolioOptimizer() {
                 value={form.maxAssetWeight}
                 onChange={handleChange}
               />
-              <div className="flex items-center space-x-3">
-                <input
-                  type="checkbox"
-                  id="allowShortSelling"
-                  name="allowShortSelling"
-                  checked={form.allowShortSelling}
-                  onChange={handleChange}
-                  className="accent-blue-600"
-                />
-                <label htmlFor="allowShortSelling" className="text-sm font-medium text-white">
-                  Allow Short Selling
-                </label>
-              </div>
+              <Checkbox
+                id="allowShortSelling"
+                label="Allow Short Selling"
+                checked={form.allowShortSelling}
+                onChange={handleChange}
+              />
             </CardContent>
           </Card>
         </motion.div>
@@ -152,19 +162,12 @@ export default function PortfolioOptimizer() {
                   ))}
                 </select>
               </div>
-              <div className="flex items-center space-x-3">
-                <input
-                  type="checkbox"
-                  id="includeTransactionCosts"
-                  name="includeTransactionCosts"
-                  checked={form.includeTransactionCosts}
-                  onChange={handleChange}
-                  className="accent-blue-600"
-                />
-                <label htmlFor="includeTransactionCosts" className="text-sm font-medium text-white">
-                  Include Transaction Costs
-                </label>
-              </div>
+              <Checkbox
+                id="includeTransactionCosts"
+                label="Include Transaction Costs"
+                checked={form.includeTransactionCosts}
+                onChange={handleChange}
+              />
               {form.includeTransactionCosts && (
                 <Input
                   type="number"
