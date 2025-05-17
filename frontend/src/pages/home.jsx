@@ -33,18 +33,29 @@ const data = [
 ];
 
 const features = [
+
+   {
+    title: "Regime Detection",
+    desc: "Identify market regimes for smarter trading decisions.",
+    icon: <Blocks size={20} />,
+    link: "/regime-detection", // Link to the strategy builder page
+  },
+
+  {
+    
+    title: "Alpha Signal Discovery",
+    desc: "Use ML to detect price signals",
+    icon: <BrainCircuit size={20} />,
+    link: "/alpha-signals", // Link to the alpha signal discovery page
+  },
+
   {
     title: "Backtesting Engine",
     desc: "Simulate quant strategies over historical data",
     icon: <BarChart4 size={20} />,
     link: "/backtest", // Link to the backtesting page
   },
-  {
-    title: "Alpha Signal Discovery",
-    desc: "Use ML to detect price signals",
-    icon: <BrainCircuit size={20} />,
-    link: "/alpha-signals", // Link to the alpha signal discovery page
-  },
+  
   {
     title: "Portfolio Optimizer",
     desc: "Construct optimal portfolios",
@@ -57,17 +68,14 @@ const features = [
     icon: <ShieldCheck size={20} />,
     link: "/risk-analytics", // Link to the risk analytics page
   },
-  {
+
+ 
+
+    {
     title: "Options Pricing",
     desc: "Create rule-based strategies",
     icon: <Sigma size={20} />,
     link: "/options-pricing", // Link to the options pricing page
-  },
-  {
-    title: "Regime Detection",
-    desc: "Identify market regimes for smarter trading decisions.",
-    icon: <Blocks size={20} />,
-    link: "/regime-detection", // Link to the strategy builder page
   },
 ];
 
