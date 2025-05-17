@@ -1,15 +1,14 @@
-
 import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import  Input from "@/components/input";
+import Input from "@/components/input";
 import { Button } from "@/components/button";
 import { Card, CardContent } from "@/components/card";
 import { motion } from "framer-motion";
-import Header from "../../components/header";
+import Header from "@/components/header";
+import { Info } from "lucide-react";
 
 export default function AlphaSignal() {
-
-    const navigate = useNavigate(); // Initialize useNavigate
+  const navigate = useNavigate();
 
   const [form, setForm] = useState({
     assetUniverse: "",
@@ -18,7 +17,7 @@ export default function AlphaSignal() {
     predictionHorizon: 5,
     targetVariable: "Next Day Return",
     features: [],
-    modelType: "Random Forest",
+    modelType: "XGBoost",
     preprocessing: "StandardScaler",
     taskType: "Regression",
   });
@@ -28,12 +27,14 @@ export default function AlphaSignal() {
     "Price Action",
     "Macro Indicators",
     "Volume & Volatility",
+    "Momentum",
+    "Rolling Statistics",
   ];
 
   const modelOptions = [
-    "Random Forest",
     "XGBoost",
     "LightGBM",
+    "CatBoost",
     "Neural Network",
   ];
 
@@ -42,6 +43,8 @@ export default function AlphaSignal() {
     "5-Day Return",
     "10-Day Return",
     "Volatility",
+    "Sharpe Ratio",
+    "Sortino Ratio",
     "Direction (Up/Down)",
   ];
 
@@ -59,16 +62,13 @@ export default function AlphaSignal() {
     }
   };
 
-    const handleDiscoverAlphaSignals = () => {
-    // Here you can pass form data to the results page if needed, using the `state` option
+  const handleDiscoverAlphaSignals = () => {
     navigate("/alpha-signals-results", { state: { formData: form } });
   };
 
-  
-
   return (
     <div className="min-h-screen bg-[#0B1120] px-6 md:px-24 py-14 text-[#E2E8F0] font-sans">
-        <Header showHome />
+      <Header showHome />
       <motion.div
         initial={{ opacity: 0, y: 30 }}
         animate={{ opacity: 1, y: 0 }}
@@ -79,7 +79,7 @@ export default function AlphaSignal() {
           Alpha Signal Discovery
         </h1>
         <p className="text-gray-400 max-w-2xl mx-auto">
-          Use AI to discover alpha signals from technical and macro indicators across historical data.
+          Discover alpha-generating signals from a rich feature set using advanced ML models.
         </p>
       </motion.div>
 
@@ -122,8 +122,9 @@ export default function AlphaSignal() {
                 onChange={handleChange}
               />
               <div>
-                <label className="block mb-1 text-sm font-medium text-white">
+                <label className="block mb-1 text-sm font-medium text-white flex items-center gap-2">
                   Target Variable
+                  <Info size={16} className="text-gray-400" title="Choose your prediction target" />
                 </label>
                 <select
                   name="targetVariable"
@@ -149,17 +150,15 @@ export default function AlphaSignal() {
           transition={{ delay: 0.4, duration: 0.6 }}
         >
           <Card className="bg-[#1C2433] rounded-2xl shadow-lg">
-            <CardContent className="space-y-5 py-6">
+            <CardContent className="space-y-6 py-6">
               <div>
-                <label className="block mb-1 text-sm font-medium text-white">
+                <label className="block mb-1 text-sm font-medium text-white flex items-center gap-2">
                   Feature Set
+                  <Info size={16} className="text-gray-400" title="Select features for model training" />
                 </label>
                 <div className="grid grid-cols-2 gap-3">
                   {featureOptions.map((feat, i) => (
-                    <label
-                      key={i}
-                      className="flex items-center space-x-2 text-sm"
-                    >
+                    <label key={i} className="flex items-center space-x-2 text-sm">
                       <input
                         type="checkbox"
                         value={feat}
@@ -209,7 +208,7 @@ export default function AlphaSignal() {
 
               <div>
                 <label className="block mb-1 text-sm font-medium text-white">
-                  Labeling Type
+                  Task Type
                 </label>
                 <select
                   name="taskType"
@@ -234,8 +233,9 @@ export default function AlphaSignal() {
         transition={{ delay: 0.6 }}
       >
         <Button
-         onClick={handleDiscoverAlphaSignals}
-         className="bg-gradient-to-r from-blue-600 to-purple-600 text-white px-8 py-3 text-lg rounded-xl hover:scale-105 transition-transform shadow-lg">
+          onClick={handleDiscoverAlphaSignals}
+          className="bg-gradient-to-r from-blue-600 to-purple-600 text-white px-8 py-3 text-lg rounded-xl hover:scale-105 transition-transform shadow-lg"
+        >
           Discover Alpha Signals 🚀
         </Button>
       </motion.div>
