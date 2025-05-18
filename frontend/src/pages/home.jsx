@@ -1,7 +1,5 @@
-
-
-
-import React from "react";
+import React, { useState, useEffect } from "react";
+import axios from "axios";
 import { Button } from "@/components/button";
 import { Card, CardContent } from "@/components/card";
 import {
@@ -33,8 +31,7 @@ const data = [
 ];
 
 const features = [
-
-   {
+  {
     title: "Regime Detection",
     desc: "Identify market regimes for smarter trading decisions.",
     icon: <Blocks size={20} />,
@@ -42,7 +39,6 @@ const features = [
   },
 
   {
-    
     title: "Alpha Signal Discovery",
     desc: "Use ML to detect price signals",
     icon: <BrainCircuit size={20} />,
@@ -55,7 +51,7 @@ const features = [
     icon: <BarChart4 size={20} />,
     link: "/backtest", // Link to the backtesting page
   },
-  
+
   {
     title: "Portfolio Optimizer",
     desc: "Construct optimal portfolios",
@@ -69,9 +65,7 @@ const features = [
     link: "/risk-analytics", // Link to the risk analytics page
   },
 
- 
-
-    {
+  {
     title: "Options Pricing",
     desc: "Create rule-based strategies",
     icon: <Sigma size={20} />,
@@ -89,6 +83,59 @@ const fadeUp = {
 };
 
 export default function Home() {
+  console.log("Home component render");
+  const TWELVE_API_KEY = import.meta.env.VITE_TWELVE_API_KEY;
+  const ALPHA_API_KEY = import.meta.env.VITE_ALPHA_API_KEY;
+
+  const [topStocks, setTopStocks] = useState([]);
+  const [loadingStocks, setLoadingStocks] = useState(true);
+
+  useEffect(() => {
+    console.log("Component mounted");
+
+    const symbols = ["AAPL", "GOOGL", "TSLA", "TCS"]; // Use correct symbols for Alpha Vantage
+
+    const fetchStocks = async () => {
+      try {
+        const symbols = ["AAPL", "GOOGL", "TSLA", "RELIANCE", "TCS"];
+
+        const promises = symbols.map((symbol) =>
+          axios.get(`https://www.alphavantage.co/query`, {
+            params: {
+              function: "GLOBAL_QUOTE",
+              symbol,
+              apikey: ALPHA_API_KEY,
+            },
+          })
+        );
+
+        const results = await Promise.all(promises);
+
+        const formatted = results
+          .map((res) => {
+            console.log("Alpha Vantage response:", res.data);
+            const quote = res.data["Global Quote"];
+            if (!quote || !quote["01. symbol"]) return null;
+            return {
+              name: quote["01. symbol"],
+              change: parseFloat(quote["10. change percent"].replace("%", "")),
+            };
+          })
+          .filter((stock) => stock !== null)
+          .sort((a, b) => b.change - a.change)
+          .slice(0, 5);
+
+        setTopStocks(formatted);
+      } catch (err) {
+        console.error("Error fetching stock data from Alpha Vantage:", err);
+      } finally {
+        setLoadingStocks(false);
+      }
+    };
+
+    fetchStocks();
+  }, []);
+
   const navigate = useNavigate(); // Initialize useNavigate
 
   // Handle navigation for the "Get Started" button (Optional)
@@ -107,32 +154,33 @@ export default function Home() {
         backgroundAttachment: "fixed",
       }}
     >
-
-
       <motion.header
-  initial="hidden"
-  animate="visible"
-  variants={fadeUp}
-  className="flex justify-between items-center text-white mb-16"
->
-  <h1 className="text-3xl font-bold">QuantCrux</h1>
-  <nav className="space-x-6 text-sm">
-    {[
-      { name: "Dashboard", path: "/dashboard" },
-      { name: "Strategy Lab", path: "/strategy-lab" },
-      { name: "ML Studio", path: "/ml-studio" },
-      { name: "Docs", path: "/docs" },
-      { name: "Log In", path: "/log-in" },
-    ].map((item, i) => (
-      <motion.div key={i} whileHover={{ scale: 1.1 }} className="inline-block">
-        <Link to={item.path} className="hover:text-blue-400 transition">
-          {item.name}
-        </Link>
-      </motion.div>
-    ))}
-  </nav>
-</motion.header>
-
+        initial="hidden"
+        animate="visible"
+        variants={fadeUp}
+        className="flex justify-between items-center text-white mb-16"
+      >
+        <h1 className="text-3xl font-bold">QuantCrux</h1>
+        <nav className="space-x-6 text-sm">
+          {[
+            { name: "Dashboard", path: "/dashboard" },
+            { name: "Strategy Lab", path: "/strategy-lab" },
+            { name: "ML Studio", path: "/ml-studio" },
+            { name: "Docs", path: "/docs" },
+            { name: "Log In", path: "/log-in" },
+          ].map((item, i) => (
+            <motion.div
+              key={i}
+              whileHover={{ scale: 1.1 }}
+              className="inline-block"
+            >
+              <Link to={item.path} className="hover:text-blue-400 transition">
+                {item.name}
+              </Link>
+            </motion.div>
+          ))}
+        </nav>
+      </motion.header>
 
       <section className="text-center mb-24">
         <motion.h2
@@ -159,14 +207,18 @@ export default function Home() {
           custom={3}
           className="text-md md:text-lg text-gray-500 mb-8"
         >
-          AI-augmented tools for strategy design, portfolio management, and risk analytics.
+          AI-augmented tools for strategy design, portfolio management, and risk
+          analytics.
         </motion.p>
         <motion.div
           initial={{ opacity: 0, scale: 0.8 }}
           animate={{ opacity: 1, scale: 1 }}
           transition={{ duration: 0.5 }}
         >
-          <Button onClick={handleGetStarted} className="bg-primary text-white px-6 py-2 text-md rounded-md shadow-md hover:opacity-90 transition">
+          <Button
+            onClick={handleGetStarted}
+            className="bg-primary text-white px-6 py-2 text-md rounded-md shadow-md hover:opacity-90 transition"
+          >
             Get Started
           </Button>
         </motion.div>
@@ -179,7 +231,7 @@ export default function Home() {
           variants={fadeUp}
           className="text-3xl font-semibold mb-8"
         >
-        {/* Core Features */}
+          {/* Core Features */}
         </motion.h3>
         <div className="grid md:grid-cols-3 gap-6">
           {features.map((f, i) => (
@@ -191,15 +243,22 @@ export default function Home() {
               variants={fadeUp}
               whileHover={{ scale: 1.03 }}
             >
-              <Link to={f.link}> {/* Add navigation for each feature */}
+              <Link to={f.link}>
+                {" "}
+                {/* Add navigation for each feature */}
                 <Card className="bg-[#1C2433] hover:bg-[#243044] transition-colors p-4">
                   <CardContent className="space-y-4">
                     <div className="flex items-center space-x-2">
                       {f.icon}
-                      <h4 className="text-lg font-medium text-white">{f.title}</h4>
+                      <h4 className="text-lg font-medium text-white">
+                        {f.title}
+                      </h4>
                     </div>
                     <p className="text-sm text-gray-400">{f.desc}</p>
-                    <Button variant="secondary" className="w-full bg-[#3B82F6]/10 text-blue-400 hover:bg-[#3B82F6]/20">
+                    <Button
+                      variant="secondary"
+                      className="w-full bg-[#3B82F6]/10 text-blue-400 hover:bg-[#3B82F6]/20"
+                    >
                       Launch
                     </Button>
                   </CardContent>
@@ -210,7 +269,7 @@ export default function Home() {
         </div>
       </section>
 
-         <section>
+      <section>
         <motion.h3
           initial="hidden"
           animate="visible"
@@ -223,18 +282,30 @@ export default function Home() {
           <motion.div whileHover={{ scale: 1.02 }}>
             <Card className="bg-[#1C2433] p-4">
               <CardContent>
-                <h4 className="text-lg font-medium mb-2">Top-performing assets</h4>
-                <ul className="text-sm space-y-1">
-                  <li>
-                    Tesla Inc. <span className="text-green-500">+3.15%</span>
-                  </li>
-                  <li>
-                    Alphabet Inc. <span className="text-green-500">+2.48%</span>
-                  </li>
-                  <li>
-                    Amazon.com, Inc. <span className="text-green-500">+1.52%</span>
-                  </li>
-                </ul>
+                <h4 className="text-lg font-medium mb-2">
+                  Top-performing assets
+                </h4>
+                {loadingStocks ? (
+                  <p className="text-sm text-gray-500">Loading...</p>
+                ) : (
+                  <ul className="text-sm space-y-1">
+                    {topStocks.map((stock, idx) => (
+                      <li key={idx}>
+                        {stock.name}{" "}
+                        <span
+                          className={`ml-2 ${
+                            stock.change >= 0
+                              ? "text-green-500"
+                              : "text-red-500"
+                          }`}
+                        >
+                          {stock.change >= 0 ? "+" : ""}
+                          {stock.change.toFixed(2)}%
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
+                )}
               </CardContent>
             </Card>
           </motion.div>
@@ -245,7 +316,13 @@ export default function Home() {
                 <h4 className="text-lg font-medium mb-2">Real-time chart</h4>
                 <ResponsiveContainer width="100%" height={100}>
                   <LineChart data={data}>
-                    <Line type="monotone" dataKey="value" stroke="#3B82F6" strokeWidth={2} dot={false} />
+                    <Line
+                      type="monotone"
+                      dataKey="value"
+                      stroke="#3B82F6"
+                      strokeWidth={2}
+                      dot={false}
+                    />
                     <XAxis dataKey="name" hide />
                     <YAxis hide />
                     <Tooltip />
@@ -265,7 +342,6 @@ export default function Home() {
           </motion.div>
         </div>
       </section>
-
 
       <footer className="mt-24 text-center text-sm text-gray-500">
         <div className="space-x-4">
