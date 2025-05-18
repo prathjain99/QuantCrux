@@ -31,13 +31,14 @@ import Portfolio from './pages/core/Portfolio';
 import OptionsPricing from './pages/core/OptionsPricing';
 import RiskAnalytics from './pages/core/RiskAnalytics';
 import MLStudio from './pages/core/MLStudio';
-import StrategyLab from './pages/core/StrategyLab';
+import StrategyLab from './pages/StrategyLab/StrategyLab';
 import BacktestingResult from './pages/core/BacktestingResult';
 import AlphaSignalResults from './pages/core/AlphaSignalsResults';
 import PortfolioOptimizerResults from './pages/core/PortfolioResults';
 import RiskAnalyticsResults from './pages/core/RiskAnalyticsResults';
 import OptionsPricingResults from './pages/core/OptionsPricingResults';
 import RegimeDetectionResults from './pages/core/RegimeDetectionResults';
+import StrategyCreate from './pages/StrategyLab/StrategyCreate';
 
 // 📊 Analytics Pages
 import Market from './pages/analytics/Market';
@@ -86,6 +87,7 @@ function App() {
         <Route path="/risk-analytics-results" element={<RiskAnalyticsResults />} />
         <Route path="/options-pricing-results" element={<OptionsPricingResults />} />
         <Route path="/regime-detection-results" element={<RegimeDetectionResults />} />
+        <Route path="/strategy-lab/create" element={<StrategyCreate/>} />
         
 
         {/* 📊 Analytics */}

@@ -30,6 +30,8 @@ import RegimeDetectionResults from "./pages/core/RegimeDetectionResults";
 import Dashboard from "./pages/core/Dashboard";
 import SessionDetails from "./pages/utility/SessionDetails";
 import SessionCompare from "./pages/analytics/ModelComparison";
+import StrategyLab from "./pages/StrategyLab/StrategyLab";
+import StrategyCreate from "./pages/StrategyLab/StrategyCreate";
 
 import "./index.css";
 
@@ -47,30 +49,20 @@ ReactDOM.createRoot(document.getElementById("root")).render(
       <Route path="/alpha-signals" element={<AlphaSignal />} />
       <Route path="/alpha-signals-results" element={<AlphaSignalResults />} />
       <Route path="/portfolio" element={<PortfolioOptimizer />} />
-      <Route
-        path="/portfolio-results"
-        element={<PortfolioOptimizerResults />}
-      />
+      <Route path="/portfolio-results" element={<PortfolioOptimizerResults />} />
       <Route path="/risk-analytics" element={<RiskAnalytics />} />
-      <Route
-        path="/risk-analytics-results"
-        element={<RiskAnalyticsResults />}
-      />
+      <Route path="/risk-analytics-results" element={<RiskAnalyticsResults />} />
       <Route path="/options-pricing" element={<OptionsPricing />} />
-      <Route
-        path="/options-pricing-results"
-        element={<OptionsPricingResults />}
-      />
+      <Route path="/options-pricing-results" element={<OptionsPricingResults />} />
       <Route path="/regime-detection" element={<RegimeDetection />} />
-      <Route
-        path="/regime-detection-results"
-        element={<RegimeDetectionResults />}
-      />
+      <Route path="/regime-detection-results" element={<RegimeDetectionResults />} />
       <Route path="dashboard/session-details" element={<SessionDetails />} />
 
       <Route path="/dashboard" element={<Dashboard />} />
 
       <Route path="dashboard/model-comparison" element={<SessionCompare />} />
+      <Route path="/strategy-lab" element={<StrategyLab/>} />
+      <Route path="/strategy-lab/create" element={<StrategyCreate/>} />
 
       <Route path="/500" element={<ServerError />} />
       <Route path="/unauthorized" element={<Unauthorized />} />

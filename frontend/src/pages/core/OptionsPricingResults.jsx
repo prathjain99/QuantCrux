@@ -4,6 +4,7 @@ import { motion } from "framer-motion";
 import { Card, CardContent } from "@/components/card";
 import { Button } from "@/components/button";
 import Header from "@/components/header";
+import ExportButtons from "../../components/exportButton";
 
 export default function OptionsPricingResults() {
   const { state } = useLocation();
@@ -95,15 +96,20 @@ export default function OptionsPricingResults() {
       </Card>
 
       {/* CTA Buttons */}
-        <div className="text-center mt-12 space-x-4">
-        <Button
-          onClick={() => window.print()}
-          className="bg-blue-700 text-white px-6 py-1 rounded-lg"
-        >
-          Download Report 📄
-        </Button>
-      </div>
+       
       <div className="text-center mt-12 space-x-4">
+
+          <Card className="bg-[#1C2433] p-6 rounded-xl border border-gray-700 mb-6 text-center">
+            <CardContent>
+              <h2 className="text-lg font-semibold mb-4">📤 Export Your Data</h2>
+          
+             <ExportButtons data={{ formData, results: dummyResults }} fileName="option_pricing_report"/>
+          </CardContent>
+          </Card>
+        
+
+       
+
         <Button
           onClick={() => navigate("/options-pricing")}
           className="bg-gradient-to-r from-blue-600 to-purple-600 text-white px-8 py-3 text-lg rounded-xl hover:scale-105 transition-transform"

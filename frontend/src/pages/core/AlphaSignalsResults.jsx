@@ -15,6 +15,7 @@ import {
 } from "recharts";
 import Table from "@/components/table";
 import Header from "../../components/header";
+import ExportButtons from "../../components/exportButton";
 
 export default function AlphaSignalResults() {
   const [signalResults, setSignalResults] = useState([]);
@@ -156,8 +157,9 @@ export default function AlphaSignalResults() {
           </CardContent>
         </Card>
       </motion.div>
+      
 
-      <motion.div
+      {/* <motion.div
         className="text-center mt-12"
         initial={{ opacity: 0, scale: 0.9 }}
         animate={{ opacity: 1, scale: 1 }}
@@ -169,7 +171,27 @@ export default function AlphaSignalResults() {
         >
           Re-run Discovery
         </Button>
-      </motion.div>
+      </motion.div> */}
+
+      <motion.div
+  initial={{ opacity: 0, scale: 0.9 }}
+  animate={{ opacity: 1, scale: 1 }}
+  transition={{ delay: 0.6 }}
+  className="text-center mt-12"
+>
+  <Card className="bg-[#1C2433] p-6 rounded-xl border border-gray-700 mb-6 text-center">
+    <CardContent>
+      <h2 className="text-lg font-semibold mb-4">📤 Export Your Data</h2>
+  <ExportButtons formData={{ signalResults, metrics }} sessionId="alphaSignalSession" />
+  </CardContent>
+  </Card>
+  <Button
+    className="bg-gradient-to-r from-blue-600 to-purple-600 text-white px-8 py-3 text-lg rounded-xl hover:scale-105 transition-transform shadow-lg mt-8"
+    onClick={() => navigate("/alpha-signals")}
+  >
+    Re-run Discovery
+  </Button>
+</motion.div>
     </div>
   );
 }

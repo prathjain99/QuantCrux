@@ -5,6 +5,7 @@ import { motion } from "framer-motion";
 import { Card, CardContent } from "@/components/card";
 import { Button } from "@/components/button";
 import Header from "@/components/header";
+import ExportButtons from "../../components/exportButton";
 
 export default function PortfolioOptimizerResults() {
   const navigate = useNavigate();
@@ -129,14 +130,22 @@ export default function PortfolioOptimizerResults() {
       </Card>
 
       {/* Download Report Button */}
-      <div className="text-center mt-8">
+      {/* <div className="text-center mt-8">
         <Button
           onClick={() => window.print()}
           className="bg-gradient-to-r from-blue-600 to-purple-600 text-white px-4 py-2 text-lg rounded-xl hover:scale-105 transition-transform shadow-lg"
         >
           Download Report 📄
         </Button>
-      </div>
+      </div> */}
+
+            <Card className="bg-[#1C2433] p-6 rounded-xl border border-gray-700 mb-6 text-center">
+              <CardContent className="p-6">
+                <h2 className="text-lg font-semibold mb-4">📤 Export Your Data</h2>
+                <ExportButtons formData={formData} sessionId="portfolioOptimizerSession" />
+              </CardContent>
+            </Card>
+      
 
       {/* Back to Optimizer Button */}
       <motion.div
