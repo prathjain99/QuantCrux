@@ -57,6 +57,10 @@ function AppRoutes() {
         element={user ? <BacktestResultsPage /> : <Navigate to="/login" />} 
       />
       <Route 
+        path="/products" 
+        element={user ? <ProductsPage /> : <Navigate to="/login" />} 
+      />
+      <Route 
         path="/products/new" 
         element={user ? <ProductBuilderPage /> : <Navigate to="/login" />} 
       />
