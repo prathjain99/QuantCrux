@@ -55,7 +55,7 @@ const Dashboard: React.FC = () => {
       { name: 'Backtesting', icon: BarChart3, description: 'Historical strategy simulation and analysis', path: '/backtests' },
       { name: 'Product Builder', icon: Briefcase, description: 'Structured product creation and pricing', path: '/products' },
       { name: 'Portfolio Management', icon: Users, description: 'Track and manage investment portfolios', path: '/portfolios' },
-      { name: 'Trade Desk', icon: TrendingUp, description: 'Order execution and trade management' },
+      { name: 'Trade Desk', icon: TrendingUp, description: 'Order execution and trade management', path: '/trade-desk' },
       { name: 'Risk Analytics', icon: Shield, description: 'Risk metrics and performance analysis' },
       { name: 'User Management', icon: Settings, description: 'User administration and permissions' }
     ];
