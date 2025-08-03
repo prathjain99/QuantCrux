@@ -21,6 +21,7 @@ createdb quantcrux
 psql -d quantcrux -f supabase/migrations/20250803105306_amber_scene.sql
 psql -d quantcrux -f supabase/migrations/20250803112210_velvet_dust.sql
 psql -d quantcrux -f supabase/migrations/20250803165800_fix_jsonb_columns.sql
+psql -d quantcrux -f supabase/migrations/20250803171200_fix_enum_columns.sql
 ```
 
 ### Backend Setup
