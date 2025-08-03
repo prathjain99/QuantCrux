@@ -26,7 +26,7 @@ public class StrategyVersion {
     
     @NotNull
     @Column(name = "config_json", nullable = false)
-    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(name = "config_json", nullable = false, columnDefinition = "TEXT")
     private String configJson;
     
     @Column(name = "change_description", columnDefinition = "TEXT")

@@ -30,7 +30,7 @@ public class StrategySignal {
     private BigDecimal price;
     
     @Column(name = "indicator_values")
-    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(name = "indicator_values", columnDefinition = "TEXT")
     private String indicatorValues;
     
     @ElementCollection

@@ -9,16 +9,14 @@ spring:
   jpa:
     hibernate:
       ddl-auto: none
-    show-sql: true
+    show-sql: false
     properties:
       hibernate:
         dialect: org.hibernate.dialect.PostgreSQLDialect
-        format_sql: true
+        format_sql: false
         jdbc:
           lob:
             non_contextual_creation: true
-        type:
-          json_format_mapper: com.fasterxml.jackson.databind.ObjectMapper
     database-platform: org.hibernate.dialect.PostgreSQLDialect
   security:
     oauth2:
