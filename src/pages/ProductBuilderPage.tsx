@@ -106,9 +106,33 @@ const ProductBuilderPage: React.FC = () => {
     const { name, value } = e.target;
     setFormData(prev => ({
       ...prev,
-      [name]: name === 'notional' || name === 'strikePrice' || name === 'barrierLevel' || name === 'payoffRate' || name === 'simulationRuns' || name === 'riskFreeRate' || name === 'impliedVolatility'
-        ? parseFloat(value) || 0 
-        : value
+      [name]: (() => {
+        // Handle optional UUID fields
+        if (name === 'linkedStrategyId') {
+          return value === '' ? undefined : value;
+        }
+        
+        // Handle optional number fields
+        if (['strikePrice', 'barrierLevel', 'simulationRuns'].includes(name)) {
+          if (value === '') return undefined;
+          const numValue = parseFloat(value);
+          return isNaN(numValue) ? undefined : numValue;
+        }
+        
+        // Handle required number fields
+        if (name === 'notional') {
+          const numValue = parseFloat(value);
+          return isNaN(numValue) ? 100000 : numValue; // Default to 100000 if invalid
+        }
+        
+        // Handle optional date fields
+        if (['issueDate', 'settlementDate'].includes(name)) {
+          return value === '' ? undefined : value;
+        }
+        
+        // Handle all other fields as strings
+        return value;
+      })()
     }));
   };
 
@@ -339,7 +363,7 @@ const ProductBuilderPage: React.FC = () => {
                       <input
                         type="number"
                         name="strikePrice"
-                        value={formData.strikePrice || ''}
+                        value={formData.strikePrice ?? ''}
                         onChange={handleInputChange}
                         className="w-full pl-10 pr-4 py-3 bg-slate-800/50 border border-slate-600 rounded-lg text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent transition-all duration-200"
                         placeholder="150.00"
@@ -357,7 +381,7 @@ const ProductBuilderPage: React.FC = () => {
                     <input
                       type="number"
                       name="barrierLevel"
-                      value={formData.barrierLevel || ''}
+                      value={formData.barrierLevel ?? ''}
                       onChange={handleInputChange}
                       className="w-full px-4 py-3 bg-slate-800/50 border border-slate-600 rounded-lg text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent transition-all duration-200"
                       placeholder="140.00"
@@ -380,7 +404,7 @@ const ProductBuilderPage: React.FC = () => {
                           payoffRate: isNaN(value) ? undefined : value
                         }));
                       }}
-                      className="w-full px-4 py-3 bg-slate-800/50 border border-slate-600 rounded-lg text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent transition-all duration-200"
+                      value={formData.settlementDate ?? ''}
                       placeholder="12.0"
                       step="0.1"
                     />
@@ -398,7 +422,7 @@ const ProductBuilderPage: React.FC = () => {
                       <input
                         type="date"
                         name="issueDate"
-                        value={formData.issueDate || ''}
+                        value={formData.issueDate ?? ''}
                         onChange={handleInputChange}
                         className="w-full pl-10 pr-4 py-3 bg-slate-800/50 border border-slate-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent transition-all duration-200"
                       />

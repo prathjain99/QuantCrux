@@ -163,7 +163,12 @@ export const productService = {
   },
 
   async createProduct(data: ProductRequest): Promise<Product> {
-    const response: AxiosResponse<ApiResponse<Product>> = await apiClient.post('/products', data);
+    // Clean up undefined values before sending to backend
+    const cleanData = Object.fromEntries(
+      Object.entries(data).filter(([_, value]) => value !== undefined)
+    );
+    
+    const response: AxiosResponse<ApiResponse<Product>> = await apiClient.post('/products', cleanData);
     if (response.data.success && response.data.data) {
       return response.data.data;
     }
@@ -171,7 +176,12 @@ export const productService = {
   },
 
   async updateProduct(id: string, data: ProductRequest): Promise<Product> {
-    const response: AxiosResponse<ApiResponse<Product>> = await apiClient.put(`/products/${id}`, data);
+    // Clean up undefined values before sending to backend
+    const cleanData = Object.fromEntries(
+      Object.entries(data).filter(([_, value]) => value !== undefined)
+    );
+    
+    const response: AxiosResponse<ApiResponse<Product>> = await apiClient.put(`/products/${id}`, cleanData);
     if (response.data.success && response.data.data) {
       return response.data.data;
     }
