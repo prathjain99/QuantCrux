@@ -10,6 +10,7 @@ import StrategyBuilderPage from './pages/StrategyBuilderPage';
 import BacktestsPage from './pages/BacktestsPage';
 import BacktestResultsPage from './pages/BacktestResultsPage';
 import ProductsPage from './pages/ProductsPage';
+import ProductsPage from './pages/ProductsPage';
 import LoadingSpinner from './components/LoadingSpinner';
 
 function AppRoutes() {
@@ -52,6 +53,10 @@ function AppRoutes() {
       <Route 
         path="/backtests/:id" 
         element={user ? <BacktestResultsPage /> : <Navigate to="/login" />} 
+      />
+      <Route 
+        path="/products" 
+        element={user ? <ProductsPage /> : <Navigate to="/login" />} 
       />
       <Route 
         path="/products" 
