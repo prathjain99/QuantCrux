@@ -12,6 +12,9 @@ import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import com.fasterxml.jackson.databind.JsonNode;
+import java.math.BigDecimal;
+
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
@@ -814,7 +817,7 @@ public class BacktestService {
             return indicators.values().stream().mapToInt(Integer::intValue).max().orElse(50);
         }
         
-                .collect(Collectors.toList());
+                // .collect(Collectors.toList());
         
         public BigDecimal getPositionSizePct() { return positionSizePct; }
         public void setPositionSizePct(BigDecimal positionSizePct) { this.positionSizePct = positionSizePct; }
@@ -1080,6 +1083,41 @@ public class BacktestService {
         private List<BacktestTrade> trades;
         private List<BacktestResponse.EquityPoint> equityCurve;
         private List<BacktestResponse.DrawdownPoint> drawdownCurve;
+        private BigDecimal profitFactor;
+        public BigDecimal getProfitFactor() {
+            return profitFactor;
+        }
+        public void setProfitFactor(BigDecimal profitFactor) {
+            this.profitFactor = profitFactor;
+        }
+        public void setVolatility(BigDecimal volatility) {
+            this.volatility = volatility;
+        }
+        public void setSortinoRatio(BigDecimal sortinoRatio) {
+            this.sortinoRatio = sortinoRatio;
+        }
+        public void setAvgTradeDuration(int avgTradeDuration) {
+            this.avgTradeDuration = avgTradeDuration;
+        }
+        public void setMaxDrawdownDuration(int maxDrawdownDuration) {
+            this.maxDrawdownDuration = maxDrawdownDuration;
+        }
+        public BigDecimal getVolatility() {
+            return volatility;
+        }
+        public BigDecimal getSortinoRatio() {
+            return sortinoRatio;
+        }
+        public int getAvgTradeDuration() {
+            return avgTradeDuration;
+        }
+        public int getMaxDrawdownDuration() {
+            return maxDrawdownDuration;
+        }
+        private BigDecimal volatility;
+        private BigDecimal sortinoRatio;
+        private int avgTradeDuration;
+        private int maxDrawdownDuration;
         
         // Getters and setters
         public BigDecimal getFinalCapital() { return finalCapital; }

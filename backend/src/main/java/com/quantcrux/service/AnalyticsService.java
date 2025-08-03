@@ -12,10 +12,16 @@ import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import com.fasterxml.jackson.databind.JsonNode;
+import java.math.BigDecimal;
+
+import org.springframework.beans.factory.annotation.Autowired;
+
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.time.temporal.ChronoUnit;
 import java.util.*;
 import java.util.stream.Collectors;
@@ -49,6 +55,12 @@ public class AnalyticsService {
     
     @Autowired
     private MarketDataService marketDataService;
+
+    @Autowired
+    private PositionRepository positionRepository;
+
+    @Autowired
+    private PortfolioHoldingRepository portfolioHoldingRepository;
     
     private final ObjectMapper objectMapper = new ObjectMapper();
     private final Random random = new Random();
@@ -279,7 +291,7 @@ public class AnalyticsService {
     
     private void calculateRiskFromHoldings(Portfolio portfolio, AnalyticsResponse response) {
         try {
-            List<PortfolioHolding> holdings = holdingRepository.findByPortfolio(portfolio);
+            List<PortfolioHolding> holdings = portfolioHoldingRepository.findByPortfolio(portfolio);
             
             if (holdings.isEmpty()) {
                 return;
@@ -557,45 +569,80 @@ public class AnalyticsService {
         response.setWinRate(BigDecimal.valueOf(0.55 + random.nextGaussian() * 0.15));
     }
     
+    // private void calculateMaxDrawdown(List<PortfolioHistory> history, AnalyticsResponse response) {
+    //     BigDecimal peak = BigDecimal.ZERO;
+    //     BigDecimal maxDrawdown = BigDecimal.ZERO;
+    //     int maxDrawdownDuration = 0;
+    //     int currentDrawdownDuration = 0;
+    //     int maxDrawdownDuration = 0;
+    //     int currentDrawdownDuration = 0;
+        
+    //     for (PortfolioHistory point : history) {
+    //         if (point.getNav().compareTo(peak) > 0) {
+    //             peak = point.getNav();
+    //             currentDrawdownDuration = 0;
+    //         } else {
+    //             currentDrawdownDuration++;
+    //             currentDrawdownDuration = 0;
+    //         } 
+            
+    //         if (peak.compareTo(BigDecimal.ZERO) > 0) {
+    //             BigDecimal drawdown = peak.subtract(point.getNav()).divide(peak, 6, RoundingMode.HALF_UP);
+    //             if (drawdown.compareTo(maxDrawdown) > 0) {
+    //                 maxDrawdown = drawdown;
+    //                 maxDrawdownDuration = currentDrawdownDuration;
+    //             }
+    //             maxDrawdownDuration = currentDrawdownDuration;
+    //         }
+    //     }
+        
+    //     response.setMaxDrawdown(maxDrawdown);
+    //     response.setMaxDrawdownDuration(maxDrawdownDuration);
+        
+    //     // Calculate Calmar ratio (CAGR / Max Drawdown)
+    //     if (maxDrawdown.compareTo(BigDecimal.ZERO) > 0 && response.getCagr() != null) {
+    //         BigDecimal calmarRatio = response.getCagr().divide(maxDrawdown, 6, RoundingMode.HALF_UP);
+    //         response.setCalmarRatio(calmarRatio);
+    //     }
+    //     response.setMaxDrawdownDuration(maxDrawdownDuration);
+    // }
+
     private void calculateMaxDrawdown(List<PortfolioHistory> history, AnalyticsResponse response) {
         BigDecimal peak = BigDecimal.ZERO;
         BigDecimal maxDrawdown = BigDecimal.ZERO;
         int maxDrawdownDuration = 0;
         int currentDrawdownDuration = 0;
-        int maxDrawdownDuration = 0;
-        int currentDrawdownDuration = 0;
-        
+
         for (PortfolioHistory point : history) {
             if (point.getNav().compareTo(peak) > 0) {
+                // New peak
                 peak = point.getNav();
                 currentDrawdownDuration = 0;
             } else {
+                // In drawdown
                 currentDrawdownDuration++;
-                currentDrawdownDuration = 0;
-            } else {
-                currentDrawdownDuration++;
-            }
-            
-            if (peak.compareTo(BigDecimal.ZERO) > 0) {
-                BigDecimal drawdown = peak.subtract(point.getNav()).divide(peak, 6, RoundingMode.HALF_UP);
-                if (drawdown.compareTo(maxDrawdown) > 0) {
-                    maxDrawdown = drawdown;
-                    maxDrawdownDuration = currentDrawdownDuration;
+                if (peak.compareTo(BigDecimal.ZERO) > 0) {
+                    BigDecimal drawdown = peak.subtract(point.getNav())
+                            .divide(peak, 6, RoundingMode.HALF_UP);
+                    if (drawdown.compareTo(maxDrawdown) > 0) {
+                        maxDrawdown = drawdown;
+                        maxDrawdownDuration = currentDrawdownDuration;
+                    }
                 }
-                maxDrawdownDuration = currentDrawdownDuration;
             }
         }
-        
+
         response.setMaxDrawdown(maxDrawdown);
         response.setMaxDrawdownDuration(maxDrawdownDuration);
-        
+
         // Calculate Calmar ratio (CAGR / Max Drawdown)
         if (maxDrawdown.compareTo(BigDecimal.ZERO) > 0 && response.getCagr() != null) {
             BigDecimal calmarRatio = response.getCagr().divide(maxDrawdown, 6, RoundingMode.HALF_UP);
             response.setCalmarRatio(calmarRatio);
         }
-        response.setMaxDrawdownDuration(maxDrawdownDuration);
-    }
+}
+
+    
     
     private void calculateBenchmarkMetrics(Portfolio portfolio, AnalyticsResponse response, AnalyticsRequest request, List<BigDecimal> returns) {
         try {
@@ -720,7 +767,7 @@ public class AnalyticsService {
             logger.info("Calculating attribution analysis for portfolio: {}", portfolio.getName());
             
             // Get actual portfolio holdings
-            List<PortfolioHolding> holdings = holdingRepository.findByPortfolioOrderByWeightPctDesc(portfolio);
+            List<PortfolioHolding> holdings = portfolioHoldingRepository.findByPortfolioOrderByWeightPctDesc(portfolio);
             
             if (holdings.isEmpty()) {
                 logger.warn("No holdings found for attribution analysis");
@@ -793,7 +840,7 @@ public class AnalyticsService {
             logger.info("Calculating correlation matrix for portfolio: {}", portfolio.getName());
             
             // Get portfolio holdings
-            List<PortfolioHolding> holdings = holdingRepository.findByPortfolioOrderByWeightPctDesc(portfolio);
+            List<PortfolioHolding> holdings = portfolioHoldingRepository.findByPortfolioOrderByWeightPctDesc(portfolio);
             
             if (holdings.size() < 2) {
                 logger.warn("Not enough holdings for correlation analysis");

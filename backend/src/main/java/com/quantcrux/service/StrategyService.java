@@ -9,7 +9,13 @@ import com.quantcrux.security.UserPrincipal;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import com.fasterxml.jackson.databind.JsonNode;
+import java.math.BigDecimal;
+import java.math.RoundingMode;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.*;
@@ -30,6 +36,11 @@ public class StrategyService {
     
     @Autowired
     private MarketDataService marketDataService;
+
+    private final ObjectMapper objectMapper = new ObjectMapper();
+
+    private static final Logger logger = LoggerFactory.getLogger(StrategyService.class);
+
     
     public List<StrategyResponse> getUserStrategies(UserPrincipal userPrincipal) {
         User user = userPrincipal.getUser();
@@ -204,6 +215,8 @@ public class StrategyService {
             indicators.put("Price", currentPrice);
             indicators.put("RSI", BigDecimal.valueOf(50.0)); // Neutral RSI
         }
+        return indicators;
+    }
         
         private Map<String, BigDecimal> calculateBollingerBands(List<BigDecimal> prices, int period) {
             Map<String, BigDecimal> bands = new HashMap<>();
@@ -281,8 +294,7 @@ public class StrategyService {
             return stoch;
         }
         
-        return indicators;
-    }
+
     
     private SignalType evaluateStrategyRules(MarketDataResponse liveData, MarketDataResponse historicalData, 
                                            Map<String, Object> indicators, String configJson) {

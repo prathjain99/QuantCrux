@@ -9,6 +9,8 @@ import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import com.fasterxml.jackson.databind.JsonNode;
+import java.math.BigDecimal;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
@@ -583,17 +585,17 @@ public class TradeService {
         return quote;
     }
     
-    private BigDecimal getBasePrice(String symbol) {
-        switch (symbol.toUpperCase()) {
-            case "AAPL": return BigDecimal.valueOf(169.51);
-            case "MSFT": return BigDecimal.valueOf(314.26);
-            case "GOOGL": return BigDecimal.valueOf(2485.62);
-            case "TSLA": return BigDecimal.valueOf(198.77);
-            case "BTCUSD": return BigDecimal.valueOf(45000.00);
-            case "ETHUSD": return BigDecimal.valueOf(3000.00);
-            default: return BigDecimal.valueOf(100.00);
-        }
-    }
+    // private BigDecimal getBasePrice(String symbol) {
+    //     switch (symbol.toUpperCase()) {
+    //         case "AAPL": return BigDecimal.valueOf(169.51);
+    //         case "MSFT": return BigDecimal.valueOf(314.26);
+    //         case "GOOGL": return BigDecimal.valueOf(2485.62);
+    //         case "TSLA": return BigDecimal.valueOf(198.77);
+    //         case "BTCUSD": return BigDecimal.valueOf(45000.00);
+    //         case "ETHUSD": return BigDecimal.valueOf(3000.00);
+    //         default: return BigDecimal.valueOf(100.00);
+    //     }
+    // }
     
     private boolean canTrade(UserRole role) {
         return role == UserRole.CLIENT || role == UserRole.PORTFOLIO_MANAGER || role == UserRole.ADMIN;

@@ -16,6 +16,9 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.reactive.function.client.WebClient;
 import org.springframework.web.reactive.function.client.WebClientResponseException;
 import reactor.core.publisher.Mono;
+import com.fasterxml.jackson.databind.JsonNode;
+import java.math.BigDecimal;
+
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
@@ -232,6 +235,37 @@ public class MarketDataService {
                 .collect(Collectors.toList());
     }
     
+    // private MarketDataResponse fetchFromSource(DataSource source, MarketDataRequest request) {
+    //     updateSourceUsage(source);
+        
+    //     try {
+    //         String apiUrl = buildApiUrl(source, request);
+    //         logger.debug("Fetching from URL: {}", apiUrl);
+            
+    //         String apiResponseJson = webClient.get()
+    //                 .uri(apiUrl)
+    //                 .retrieve()
+    //                 .bodyToMono(String.class)
+    //                 .timeout(java.time.Duration.ofSeconds(10))
+    //                 .onErrorResume(WebClientResponseException.class, ex -> {
+    //                     logger.error("API call failed with status: {} for URL: {}", ex.getStatusCode(), apiUrl);
+    //                     return Mono.error(new RuntimeException("API call failed: " + ex.getMessage()));
+    //                 })
+    //                 .block();
+            
+    //         if (apiResponseJson == null || apiResponseJson.trim().isEmpty()) {
+    //             throw new RuntimeException("Empty response from API");
+    //         }
+            
+    //         return parseApiResponse(apiResponseJson, request, source);
+            
+    //     } catch (Exception e) {
+    //         logger.error("Failed to fetch from source {}: {}", source.getName(), e.getMessage());
+    //         logSourceFailure(source, e.getMessage());
+    //         throw e;
+    //     }
+    // }
+
     private MarketDataResponse fetchFromSource(DataSource source, MarketDataRequest request) {
         updateSourceUsage(source);
         
@@ -253,15 +287,20 @@ public class MarketDataService {
             if (apiResponseJson == null || apiResponseJson.trim().isEmpty()) {
                 throw new RuntimeException("Empty response from API");
             }
-            
+
             return parseApiResponse(apiResponseJson, request, source);
             
+        } catch (JsonProcessingException e) {
+            logger.error("Failed to parse API response for source {}: {}", source.getName(), e.getMessage());
+            logSourceFailure(source, "Parsing error: " + e.getMessage());
+            throw new RuntimeException("Failed to parse API response", e);
         } catch (Exception e) {
             logger.error("Failed to fetch from source {}: {}", source.getName(), e.getMessage());
             logSourceFailure(source, e.getMessage());
             throw e;
         }
     }
+
     
     private String buildApiUrl(DataSource source, MarketDataRequest request) {
         String symbol = request.getSymbol().toUpperCase();
