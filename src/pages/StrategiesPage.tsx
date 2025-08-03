@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { 
   Plus, 
   Search, 
@@ -17,14 +17,18 @@ import {
 } from 'lucide-react';
 import { useAuth } from '../hooks/useAuth';
 import { strategyService, Strategy, StrategyStatus, SignalType } from '../services/strategyService';
+import BacktestModal from '../components/BacktestModal';
 import toast from 'react-hot-toast';
 
 const StrategiesPage: React.FC = () => {
   const { user } = useAuth();
+  const navigate = useNavigate();
   const [strategies, setStrategies] = useState<Strategy[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<StrategyStatus | 'ALL'>('ALL');
+  const [selectedStrategy, setSelectedStrategy] = useState<Strategy | null>(null);
+  const [showBacktestModal, setShowBacktestModal] = useState(false);
 
   useEffect(() => {
     loadStrategies();
@@ -55,6 +59,15 @@ const StrategiesPage: React.FC = () => {
     } catch (error: any) {
       toast.error('Failed to delete strategy');
     }
+  };
+
+  const handleRunBacktest = (strategy: Strategy) => {
+    setSelectedStrategy(strategy);
+    setShowBacktestModal(true);
+  };
+
+  const handleBacktestCreated = (backtestId: string) => {
+    navigate(`/backtests/${backtestId}`);
   };
 
   const getStatusColor = (status: StrategyStatus) => {
@@ -295,16 +308,29 @@ const StrategiesPage: React.FC = () => {
                     </button>
                   </div>
                   
-                  <Link
-                    to={`/backtests?strategy=${strategy.id}`}
+                  <button
+                    onClick={() => handleRunBacktest(strategy)}
                     className="bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-400 px-3 py-1 rounded-md text-sm font-medium transition-all duration-200"
                   >
                     Run Backtest
-                  </Link>
+                  </button>
                 </div>
               </div>
             ))}
           </div>
+        )}
+
+        {/* Backtest Modal */}
+        {selectedStrategy && (
+          <BacktestModal
+            isOpen={showBacktestModal}
+            onClose={() => {
+              setShowBacktestModal(false);
+              setSelectedStrategy(null);
+            }}
+            strategy={selectedStrategy}
+            onBacktestCreated={handleBacktestCreated}
+          />
         )}
       </main>
     </div>

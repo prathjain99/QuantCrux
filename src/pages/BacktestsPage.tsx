@@ -195,7 +195,7 @@ const BacktestsPage: React.FC = () => {
             className="bg-gradient-to-r from-emerald-500 to-emerald-600 hover:from-emerald-600 hover:to-emerald-700 text-white font-semibold py-3 px-6 rounded-lg transition-all duration-200 transform hover:scale-105 flex items-center"
           >
             <Plus className="w-5 h-5 mr-2" />
-            New Backtest
+            Select Strategy to Backtest
           </Link>
         </div>
 

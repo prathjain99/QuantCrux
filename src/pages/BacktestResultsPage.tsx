@@ -115,6 +115,17 @@ const BacktestResultsPage: React.FC = () => {
     drawdown: point.drawdown * 100
   })) || [];
 
+  // Poll for running backtests
+  useEffect(() => {
+    if (backtest?.status === 'RUNNING') {
+      const interval = setInterval(() => {
+        loadBacktest();
+      }, 3000);
+      
+      return () => clearInterval(interval);
+    }
+  }, [backtest?.status]);
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950">
       {/* Header */}
