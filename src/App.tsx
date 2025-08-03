@@ -7,6 +7,8 @@ import RegisterPage from './pages/RegisterPage';
 import Dashboard from './pages/Dashboard';
 import StrategiesPage from './pages/StrategiesPage';
 import StrategyBuilderPage from './pages/StrategyBuilderPage';
+import BacktestsPage from './pages/BacktestsPage';
+import BacktestResultsPage from './pages/BacktestResultsPage';
 import LoadingSpinner from './components/LoadingSpinner';
 
 function AppRoutes() {
@@ -41,6 +43,14 @@ function AppRoutes() {
       <Route 
         path="/strategies/:id/edit" 
         element={user ? <StrategyBuilderPage /> : <Navigate to="/login" />} 
+      />
+      <Route 
+        path="/backtests" 
+        element={user ? <BacktestsPage /> : <Navigate to="/login" />} 
+      />
+      <Route 
+        path="/backtests/:id" 
+        element={user ? <BacktestResultsPage /> : <Navigate to="/login" />} 
       />
       <Route 
         path="/" 

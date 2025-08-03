@@ -296,10 +296,10 @@ const StrategiesPage: React.FC = () => {
                   </div>
                   
                   <Link
-                    to={`/strategies/${strategy.id}/test`}
+                    to={`/backtests?strategy=${strategy.id}`}
                     className="bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-400 px-3 py-1 rounded-md text-sm font-medium transition-all duration-200"
                   >
-                    Test Live
+                    Run Backtest
                   </Link>
                 </div>
               </div>

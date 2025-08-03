@@ -52,7 +52,7 @@ const Dashboard: React.FC = () => {
   const getModuleAccess = (role: UserRole) => {
     const allModules = [
       { name: 'Strategy Builder', icon: Activity, description: 'Create and manage quantitative strategies', path: '/strategies' },
-      { name: 'Backtesting', icon: BarChart3, description: 'Historical strategy simulation and analysis' },
+      { name: 'Backtesting', icon: BarChart3, description: 'Historical strategy simulation and analysis', path: '/backtests' },
       { name: 'Product Builder', icon: Briefcase, description: 'Structured product creation and pricing' },
       { name: 'Trade Desk', icon: TrendingUp, description: 'Order execution and trade management' },
       { name: 'Portfolio Management', icon: Users, description: 'Portfolio tracking and analytics' },
