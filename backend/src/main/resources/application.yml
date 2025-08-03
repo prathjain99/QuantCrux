@@ -39,6 +39,10 @@ jwt:
   expiration: 86400000 # 24 hours
   refresh-expiration: 2592000000 # 30 days
 
+finnhub:
+  api:
+    key:d27nkopr01qr2iasmtfgd27nkopr01qr2iasmtg0
+
 cors:
   allowed-origins: http://localhost:5173,http://localhost:3000
   allowed-methods: GET,POST,PUT,DELETE,OPTIONS
