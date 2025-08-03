@@ -23,26 +23,46 @@ const BacktestResultsPage: React.FC = () => {
   const { user } = useAuth();
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  
+  // Always call hooks in the same order
   const [backtest, setBacktest] = useState<Backtest | null>(null);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<'overview' | 'trades' | 'analysis'>('overview');
+  const [error, setError] = useState<string | null>(null);
 
+  // Always call useEffect hooks
   useEffect(() => {
     if (id) {
       loadBacktest();
+    } else {
+      setError('No backtest ID provided');
+      setLoading(false);
     }
   }, [id]);
+
+  // Polling effect - always called but conditionally active
+  useEffect(() => {
+    if (backtest?.status === BacktestStatus.RUNNING) {
+      const interval = setInterval(() => {
+        loadBacktest();
+      }, 3000);
+      
+      return () => clearInterval(interval);
+    }
+  }, [backtest?.status]);
 
   const loadBacktest = async () => {
     if (!id) return;
     
     try {
       setLoading(true);
+      setError(null);
       const data = await backtestService.getBacktest(id);
       setBacktest(data);
     } catch (error: any) {
+      console.error('Failed to load backtest:', error);
+      setError('Failed to load backtest results');
       toast.error('Failed to load backtest results');
-      navigate('/backtests');
     } finally {
       setLoading(false);
     }
@@ -74,6 +94,19 @@ const BacktestResultsPage: React.FC = () => {
     return value >= 0 ? 'text-emerald-400' : 'text-red-400';
   };
 
+  // Prepare chart data - always called but may be empty
+  const equityChartData = backtest?.equityCurve?.map(point => ({
+    timestamp: new Date(point.timestamp).toLocaleDateString(),
+    equity: point.equity,
+    return: ((point.equity - (backtest.initialCapital || 100000)) / (backtest.initialCapital || 100000)) * 100
+  })) || [];
+
+  const drawdownChartData = backtest?.drawdownCurve?.map(point => ({
+    timestamp: new Date(point.timestamp).toLocaleDateString(),
+    drawdown: point.drawdown * 100
+  })) || [];
+
+  // Loading state
   if (loading) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950 flex items-center justify-center">
@@ -85,13 +118,18 @@ const BacktestResultsPage: React.FC = () => {
     );
   }
 
-  if (!backtest) {
+  // Error state
+  if (error || !backtest) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950 flex items-center justify-center">
         <div className="text-center">
           <AlertTriangle className="w-16 h-16 text-red-400 mx-auto mb-4" />
-          <h2 className="text-xl font-semibold text-white mb-2">Backtest Not Found</h2>
-          <p className="text-slate-400 mb-6">The requested backtest could not be found.</p>
+          <h2 className="text-xl font-semibold text-white mb-2">
+            {error || 'Backtest Not Found'}
+          </h2>
+          <p className="text-slate-400 mb-6">
+            {error || 'The requested backtest could not be found.'}
+          </p>
           <Link
             to="/backtests"
             className="bg-gradient-to-r from-emerald-500 to-emerald-600 hover:from-emerald-600 hover:to-emerald-700 text-white font-semibold py-3 px-6 rounded-lg transition-all duration-200"
@@ -102,29 +140,6 @@ const BacktestResultsPage: React.FC = () => {
       </div>
     );
   }
-
-  // Prepare chart data
-  const equityChartData = backtest.equityCurve?.map(point => ({
-    timestamp: new Date(point.timestamp).toLocaleDateString(),
-    equity: point.equity,
-    return: ((point.equity - (backtest.initialCapital || 100000)) / (backtest.initialCapital || 100000)) * 100
-  })) || [];
-
-  const drawdownChartData = backtest.drawdownCurve?.map(point => ({
-    timestamp: new Date(point.timestamp).toLocaleDateString(),
-    drawdown: point.drawdown * 100
-  })) || [];
-
-  // Poll for running backtests
-  useEffect(() => {
-    if (backtest?.status === 'RUNNING') {
-      const interval = setInterval(() => {
-        loadBacktest();
-      }, 3000);
-      
-      return () => clearInterval(interval);
-    }
-  }, [backtest?.status]);
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950">
@@ -190,12 +205,39 @@ const BacktestResultsPage: React.FC = () => {
               <div className={`px-3 py-1 rounded-full text-sm font-medium ${
                 backtest.status === BacktestStatus.COMPLETED 
                   ? 'bg-emerald-500/20 text-emerald-400'
+                  : backtest.status === BacktestStatus.RUNNING
+                  ? 'bg-blue-500/20 text-blue-400'
+                  : backtest.status === BacktestStatus.FAILED
+                  ? 'bg-red-500/20 text-red-400'
                   : 'bg-slate-500/20 text-slate-400'
               }`}>
                 {backtest.status}
               </div>
             </div>
           </div>
+
+          {/* Progress Bar for Running Backtests */}
+          {backtest.status === BacktestStatus.RUNNING && (
+            <div className="mt-4">
+              <div className="flex justify-between text-xs text-slate-400 mb-1">
+                <span>Progress</span>
+                <span>{backtest.progress}%</span>
+              </div>
+              <div className="w-full bg-slate-700 rounded-full h-2">
+                <div 
+                  className="bg-blue-500 h-2 rounded-full transition-all duration-300"
+                  style={{ width: `${backtest.progress}%` }}
+                ></div>
+              </div>
+            </div>
+          )}
+
+          {/* Error Message */}
+          {backtest.status === BacktestStatus.FAILED && backtest.errorMessage && (
+            <div className="mt-4 p-3 bg-red-500/10 border border-red-500/20 rounded-lg">
+              <p className="text-sm text-red-400">{backtest.errorMessage}</p>
+            </div>
+          )}
         </div>
 
         {/* Key Metrics */}
@@ -371,6 +413,14 @@ const BacktestResultsPage: React.FC = () => {
                         </AreaChart>
                       </ResponsiveContainer>
                     </div>
+                  </div>
+                )}
+
+                {/* No Data Message */}
+                {equityChartData.length === 0 && drawdownChartData.length === 0 && (
+                  <div className="text-center py-8">
+                    <BarChart3 className="w-16 h-16 text-slate-600 mx-auto mb-4" />
+                    <p className="text-slate-400">No chart data available for this backtest</p>
                   </div>
                 )}
               </div>
