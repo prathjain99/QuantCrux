@@ -18,7 +18,7 @@ createdb quantcrux
 
 2. Run the database schema:
 ```bash
-psql -d quantcrux -f database/schema.sql
+psql -d quantcrux -f supabase/migrations/create_user_management_schema.sql
 ```
 
 ### Backend Setup
