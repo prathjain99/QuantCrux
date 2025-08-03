@@ -30,7 +30,6 @@ public class StrategySignal {
     private BigDecimal price;
     
     @Column(name = "indicator_values")
-    @Column(name = "indicator_values", columnDefinition = "TEXT")
     private String indicatorValues;
     
     @ElementCollection

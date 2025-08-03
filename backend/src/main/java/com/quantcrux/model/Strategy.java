@@ -40,7 +40,6 @@ public class Strategy {
     
     @NotNull
     @Column(name = "config_json", nullable = false)
-    @Column(name = "config_json", nullable = false, columnDefinition = "TEXT")
     private String configJson;
     
     @Enumerated(EnumType.STRING)

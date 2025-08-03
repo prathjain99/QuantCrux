@@ -26,7 +26,6 @@ public class StrategyVersion {
     
     @NotNull
     @Column(name = "config_json", nullable = false)
-    @Column(name = "config_json", nullable = false, columnDefinition = "TEXT")
     private String configJson;
     
     @Column(name = "change_description", columnDefinition = "TEXT")
