@@ -57,6 +57,7 @@ const Dashboard: React.FC = () => {
       { name: 'Portfolio Management', icon: Users, description: 'Track and manage investment portfolios', path: '/portfolios' },
       { name: 'Trade Desk', icon: TrendingUp, description: 'Order execution and trade management', path: '/trade-desk' },
       { name: 'Analytics & Reporting', icon: Shield, description: 'Risk metrics and performance analysis', path: '/analytics' },
+      { name: 'Market Data Service', icon: Activity, description: 'Real-time prices and historical data', path: '/market-data' },
       { name: 'User Management', icon: Settings, description: 'User administration and permissions' }
     ];
 
