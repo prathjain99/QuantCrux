@@ -9,17 +9,13 @@ spring:
   jpa:
     hibernate:
       ddl-auto: none
-    show-sql: true
+    show-sql: false
     properties:
       hibernate:
         dialect: org.hibernate.dialect.PostgreSQLDialect
-        format_sql: true
-        globally_quoted_identifiers: false
         jdbc:
           lob:
             non_contextual_creation: true
-        type:
-          preferred_uuid_jdbc_type: VARCHAR
     database-platform: org.hibernate.dialect.PostgreSQLDialect
   security:
     oauth2:
