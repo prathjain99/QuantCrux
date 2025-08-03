@@ -589,7 +589,7 @@ const ProductBuilderPage: React.FC = () => {
                       const value = parseFloat(e.target.value) / 100;
                       setFormData(prev => ({
                         ...prev,
-                        impliedVolatility: isNaN(value) ? 0.20 : value
+                        impliedVolatility: isNaN(value) ? null : value
                       }));
                     }}
                     className="w-full px-4 py-3 bg-slate-800/50 border border-slate-600 rounded-lg text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent transition-all duration-200"

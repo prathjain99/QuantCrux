@@ -176,12 +176,7 @@ export const productService = {
   },
 
   async updateProduct(id: string, data: ProductRequest): Promise<Product> {
-    // Clean up undefined values before sending to backend
-    const cleanData = Object.fromEntries(
-      Object.entries(data).filter(([_, value]) => value !== undefined)
-    );
-    
-    const response: AxiosResponse<ApiResponse<Product>> = await apiClient.put(`/products/${id}`, cleanData);
+    const response: AxiosResponse<ApiResponse<Product>> = await apiClient.put(`/products/${id}`, data);
     if (response.data.success && response.data.data) {
       return response.data.data;
     }
