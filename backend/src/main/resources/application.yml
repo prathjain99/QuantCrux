@@ -8,15 +8,18 @@ spring:
     driver-class-name: org.postgresql.Driver
   jpa:
     hibernate:
-      ddl-auto: none
+      ddl-auto: validate
     show-sql: false
     properties:
       hibernate:
         dialect: org.hibernate.dialect.PostgreSQLDialect
         format_sql: false
+        globally_quoted_identifiers: false
         jdbc:
           lob:
             non_contextual_creation: true
+        type:
+          preferred_json_mapper: jackson
     database-platform: org.hibernate.dialect.PostgreSQLDialect
   security:
     oauth2:

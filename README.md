@@ -18,8 +18,9 @@ createdb quantcrux
 
 2. Run the database schemas:
 ```bash
-psql -d quantcrux -f supabase/migrations/create_user_management_fixed.sql
-psql -d quantcrux -f supabase/migrations/create_strategy_schema_simple.sql
+psql -d quantcrux -f supabase/migrations/20250803105306_amber_scene.sql
+psql -d quantcrux -f supabase/migrations/20250803112210_velvet_dust.sql
+psql -d quantcrux -f supabase/migrations/20250803165800_fix_jsonb_columns.sql
 ```
 
 ### Backend Setup
