@@ -44,7 +44,7 @@ export interface SignalEvaluationResponse {
   message: string;
 }
 
-export interface StrategyVersion {
+interface StrategyVersion {
   id: string;
   versionNumber: number;
   configJson: string;
@@ -66,7 +66,7 @@ export enum SignalType {
   NO_SIGNAL = 'NO_SIGNAL'
 }
 
-export interface ApiResponse<T = any> {
+interface ApiResponse<T = any> {
   success: boolean;
   message: string;
   data?: T;

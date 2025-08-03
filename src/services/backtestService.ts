@@ -63,12 +63,12 @@ export interface BacktestRequest {
   benchmarkSymbol?: string;
 }
 
-export interface EquityPoint {
+interface EquityPoint {
   timestamp: string;
   equity: number;
 }
 
-export interface DrawdownPoint {
+interface DrawdownPoint {
   timestamp: string;
   drawdown: number;
 }
@@ -81,7 +81,7 @@ export enum BacktestStatus {
   CANCELLED = 'CANCELLED'
 }
 
-export interface ApiResponse<T = any> {
+interface ApiResponse<T = any> {
   success: boolean;
   message: string;
   data?: T;

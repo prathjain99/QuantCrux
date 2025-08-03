@@ -25,7 +25,7 @@ export interface RegisterData {
   role: UserRole;
 }
 
-export interface LoginResponse {
+interface LoginResponse {
   accessToken: string;
   refreshToken: string;
   tokenType: string;
@@ -36,7 +36,7 @@ export interface LoginResponse {
   role: UserRole;
 }
 
-export interface ApiResponse<T = any> {
+interface ApiResponse<T = any> {
   success: boolean;
   message: string;
   data?: T;
