@@ -10,6 +10,9 @@ import StrategyBuilderPage from './pages/StrategyBuilderPage';
 import BacktestsPage from './pages/BacktestsPage';
 import BacktestResultsPage from './pages/BacktestResultsPage';
 import ProductsPage from './pages/ProductsPage';
+import ProductBuilderPage from './pages/ProductBuilderPage';
+import ProductDetailsPage from './pages/ProductDetailsPage';
+import ProductBuilderPage from './pages/ProductBuilderPage';
 import LoadingSpinner from './components/LoadingSpinner';
 
 function AppRoutes() {
@@ -54,12 +57,28 @@ function AppRoutes() {
         element={user ? <BacktestResultsPage /> : <Navigate to="/login" />} 
       />
       <Route 
-        path="/products" 
-        element={user ? <ProductsPage /> : <Navigate to="/login" />} 
+        path="/products/new" 
+        element={user ? <ProductBuilderPage /> : <Navigate to="/login" />} 
       />
       <Route 
-        path="/products" 
-        element={user ? <ProductsPage /> : <Navigate to="/login" />} 
+        path="/products/:id/edit" 
+        element={user ? <ProductBuilderPage /> : <Navigate to="/login" />} 
+      />
+      <Route 
+        path="/products/:id" 
+        element={user ? <ProductDetailsPage /> : <Navigate to="/login" />} 
+      />
+      <Route 
+        path="/products/new" 
+        element={user ? <ProductBuilderPage /> : <Navigate to="/login" />} 
+      />
+      <Route 
+        path="/products/:id/edit" 
+        element={user ? <ProductBuilderPage /> : <Navigate to="/login" />} 
+      />
+      <Route 
+        path="/products/:id" 
+        element={user ? <ProductDetailsPage /> : <Navigate to="/login" />} 
       />
       <Route 
         path="/" 
