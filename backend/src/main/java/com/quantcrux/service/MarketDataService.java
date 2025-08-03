@@ -1,6 +1,7 @@
 package com.quantcrux.service;
 
 import com.quantcrux.dto.*;
+import com.fasterxml.jackson.databind.JsonNode;
 import com.quantcrux.model.*;
 import com.quantcrux.repository.*;
 import org.slf4j.Logger;
@@ -8,6 +9,7 @@ import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.reactive.function.client.WebClient;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
@@ -33,6 +35,12 @@ public class MarketDataService {
     @Autowired
     private BenchmarkDataRepository benchmarkRepository;
     
+    @Autowired
+    private WebClient.Builder webClientBuilder;
+
+    @Value("${finnhub.api.key}")
+    private String finnhubApiKey;
+
     private final Random random = new Random();
     
     public MarketDataResponse getLivePrice(String symbol) {
@@ -201,10 +209,49 @@ public class MarketDataService {
     }
     
     private MarketDataResponse fetchFromSource(DataSource source, MarketDataRequest request) {
-        // Simulate external API call
-        // In a real implementation, this would make HTTP requests to external APIs
-        
         updateSourceUsage(source);
+
+        try {
+            WebClient webClient = webClientBuilder.baseUrl(source.getApiUrl()).build();
+            String apiUrl = buildApiUrl(source, request);
+
+            String apiResponseJson = webClient.get()
+                .uri(apiUrl)
+                .retrieve()
+                .bodyToMono(String.class)
+                .block(); // Synchronous call for simplicity in this example
+
+            return parseApiResponse(apiResponseJson, request, source);
+        } catch (Exception e) {
+            logger.warn("Failed to fetch from source {}: {}. Falling back to mock data.", source.getName(), e.getMessage());
+            logSourceFailure(source, e.getMessage());
+            return generateMockData(request); // Fallback to mock data
+        }
+    }
+
+    private String buildApiUrl(DataSource source, MarketDataRequest request) {
+        // This is a simplified example. In a real application, you'd have more complex logic
+        // to build URLs based on the data source (Finnhub, TwelveData, etc.) and data type.
+        if ("finnhub".equals(source.getName())) {
+            if (request.getDataType() == DataType.LIVE_PRICE) {
+                return "/quote?symbol=" + request.getSymbol() + "&token=" + finnhubApiKey;
+            }
+            // Add more conditions for other data types (OHLCV, etc.) and other sources
+        }
+        // Fallback for unsupported sources or data types
+        return "/"; 
+    }
+
+    private MarketDataResponse parseApiResponse(String apiResponseJson, MarketDataRequest request, DataSource source) throws JsonProcessingException {
+        // This is a simplified example for Finnhub live price response.
+        // You'll need to adapt this parsing logic for each external API and data type.
+        JsonNode rootNode = objectMapper.readTree(apiResponseJson);
+
+        BigDecimal currentPrice = BigDecimal.valueOf(rootNode.get("c").asDouble()); // 'c' for current price
+        BigDecimal openPrice = BigDecimal.valueOf(rootNode.get("o").asDouble());
+        BigDecimal highPrice = BigDecimal.valueOf(rootNode.get("h").asDouble());
+        BigDecimal lowPrice = BigDecimal.valueOf(rootNode.get("l").asDouble());
+        BigDecimal prevClose = BigDecimal.valueOf(rootNode.get("pc").asDouble());
         
         MarketDataResponse response = new MarketDataResponse();
         response.setSymbol(request.getSymbol());
@@ -212,32 +259,33 @@ public class MarketDataService {
         response.setSource(source.getName());
         response.setDataTimestamp(LocalDateTime.now());
         response.setQualityScore(100);
-        
+        response.setPrice(currentPrice);
+        response.setOpenPrice(openPrice);
+        response.setHighPrice(highPrice);
+        response.setLowPrice(lowPrice);
+        response.setPrevClose(prevClose);
+
         if (request.getDataType() == DataType.LIVE_PRICE) {
-            // Generate realistic price data
-            BigDecimal basePrice = getBasePrice(request.getSymbol());
-            BigDecimal volatility = getSymbolVolatility(request.getSymbol());
-            
-            BigDecimal change = BigDecimal.valueOf(random.nextGaussian() * volatility.doubleValue());
-            BigDecimal currentPrice = basePrice.multiply(BigDecimal.ONE.add(change))
-                    .setScale(6, RoundingMode.HALF_UP);
-            
-            response.setPrice(currentPrice);
             response.setBidPrice(currentPrice.multiply(BigDecimal.valueOf(0.9995)));
             response.setAskPrice(currentPrice.multiply(BigDecimal.valueOf(1.0005)));
-            response.setDayChange(currentPrice.subtract(basePrice));
-            response.setDayChangePercent(change);
+            
+            if (prevClose.compareTo(BigDecimal.ZERO) > 0) {
+                response.setDayChange(currentPrice.subtract(prevClose));
+                response.setDayChangePercent(currentPrice.subtract(prevClose).divide(prevClose, 6, RoundingMode.HALF_UP));
+            }
             response.setVolume(BigDecimal.valueOf(100000 + random.nextInt(900000)));
             
         } else if (request.getDataType() == DataType.OHLCV) {
             // Generate OHLCV data
             response.setTimeframe(request.getTimeframe());
-            response.setOhlcvData(generateOHLCVData(request));
+            // In a real scenario, you'd parse OHLCV data from the API response here
+            // For now, we'll keep the mock generation for OHLCV if the API doesn't provide it directly
+            response.setOhlcvData(generateOHLCVData(request)); 
         }
         
         return response;
     }
-    
+
     private List<MarketDataResponse.OHLCVData> generateOHLCVData(MarketDataRequest request) {
         List<MarketDataResponse.OHLCVData> data = new ArrayList<>();
         BigDecimal basePrice = getBasePrice(request.getSymbol());
