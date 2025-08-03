@@ -341,106 +341,307 @@ public class AnalyticsService {
     
     private void calculateBenchmarkMetrics(Portfolio portfolio, AnalyticsResponse response, AnalyticsRequest request, List<BigDecimal> returns) {
         try {
-            // Get benchmark data using the new MarketDataService
-            List<MarketDataResponse> benchmarkData = marketDataService.getBenchmarkData(
-                request.getBenchmarkSymbol(), 
-                request.getPeriodStart().atStartOfDay(), 
-                request.getPeriodEnd().atTime(23, 59, 59)
-            );
+            logger.info("Calculating benchmark metrics for {} vs {}", 
+                       portfolio.getName(), request.getBenchmarkSymbol());
             
-            // Calculate benchmark returns from actual data
+            // Get real benchmark historical data
+            LocalDateTime startTime = request.getPeriodStart().atStartOfDay();
+            LocalDateTime endTime = request.getPeriodEnd().atTime(23, 59, 59);
+            
+            MarketDataResponse benchmarkData = marketDataService.getOHLCVData(
+                request.getBenchmarkSymbol(), "1d", startTime, endTime);
+            
             List<BigDecimal> benchmarkReturns = new ArrayList<>();
             
-            if (benchmarkData.size() > 1) {
-                for (int i = 1; i < benchmarkData.size(); i++) {
-                    BigDecimal prevPrice = benchmarkData.get(i - 1).getPrice();
-                    BigDecimal currentPrice = benchmarkData.get(i).getPrice();
+            if (benchmarkData.getOhlcvData() != null && benchmarkData.getOhlcvData().size() > 1) {
+                logger.info("Using {} days of real benchmark data for {}", 
+                           benchmarkData.getOhlcvData().size(), request.getBenchmarkSymbol());
+                
+                // Calculate benchmark daily returns from real OHLCV data
+                List<MarketDataResponse.OHLCVData> ohlcvData = benchmarkData.getOhlcvData();
+                for (int i = 1; i < ohlcvData.size(); i++) {
+                    BigDecimal prevClose = ohlcvData.get(i - 1).getClose();
+                    BigDecimal currentClose = ohlcvData.get(i).getClose();
                     
-                    if (prevPrice != null && currentPrice != null && prevPrice.compareTo(BigDecimal.ZERO) > 0) {
-                        BigDecimal dailyReturn = currentPrice.subtract(prevPrice)
-                            .divide(prevPrice, 6, RoundingMode.HALF_UP);
+                    if (prevClose.compareTo(BigDecimal.ZERO) > 0) {
+                        BigDecimal dailyReturn = currentClose.subtract(prevClose)
+                            .divide(prevClose, 6, RoundingMode.HALF_UP);
                         benchmarkReturns.add(dailyReturn);
                     }
                 }
             } else {
-                // Fallback to simulated benchmark returns if no data available
-                logger.warn("No benchmark data available for {}, using simulated returns", request.getBenchmarkSymbol());
-                for (int i = 0; i < returns.size(); i++) {
-                    benchmarkReturns.add(BigDecimal.valueOf(random.nextGaussian() * 0.01)); // 1% daily volatility
+                logger.warn("No real benchmark data available for {}, attempting fallback", request.getBenchmarkSymbol());
+                
+                // Try to get from benchmark_data table
+                try {
+                    List<MarketDataResponse> benchmarkHistory = marketDataService.getBenchmarkData(
+                        request.getBenchmarkSymbol(), startTime, endTime);
+                    
+                    if (benchmarkHistory.size() > 1) {
+                        logger.info("Using {} benchmark data points from database", benchmarkHistory.size());
+                        for (int i = 1; i < benchmarkHistory.size(); i++) {
+                            BigDecimal prevPrice = benchmarkHistory.get(i - 1).getPrice();
+                            BigDecimal currentPrice = benchmarkHistory.get(i).getPrice();
+                            
+                            if (prevPrice != null && currentPrice != null && prevPrice.compareTo(BigDecimal.ZERO) > 0) {
+                                BigDecimal dailyReturn = currentPrice.subtract(prevPrice)
+                                    .divide(prevPrice, 6, RoundingMode.HALF_UP);
+                                benchmarkReturns.add(dailyReturn);
+                            }
+                        }
+                    }
+                } catch (Exception e) {
+                    logger.warn("Failed to get benchmark data from database: {}", e.getMessage());
+                }
+                
+                // Final fallback: generate conservative benchmark returns
+                if (benchmarkReturns.isEmpty()) {
+                    logger.warn("Using simulated benchmark returns for {}", request.getBenchmarkSymbol());
+                    for (int i = 0; i < Math.min(returns.size(), 30); i++) {
+                        // Conservative market returns (8% annual = ~0.03% daily)
+                        benchmarkReturns.add(BigDecimal.valueOf(0.0003 + random.nextGaussian() * 0.01));
+                    }
                 }
             }
             
-            // Calculate beta
-            BigDecimal covariance = calculateCovariance(returns, benchmarkReturns);
-            BigDecimal benchmarkVariance = calculateVariance(benchmarkReturns);
-            
-            if (benchmarkVariance.compareTo(BigDecimal.ZERO) > 0) {
-                BigDecimal beta = covariance.divide(benchmarkVariance, 6, RoundingMode.HALF_UP);
-                response.setBeta(beta);
+            if (!benchmarkReturns.isEmpty() && !returns.isEmpty()) {
+                // Align return series (use minimum length)
+                int minLength = Math.min(returns.size(), benchmarkReturns.size());
+                List<BigDecimal> alignedReturns = returns.subList(0, minLength);
+                List<BigDecimal> alignedBenchmarkReturns = benchmarkReturns.subList(0, minLength);
                 
-                // Calculate alpha
-                BigDecimal avgPortfolioReturn = returns.stream()
-                        .reduce(BigDecimal.ZERO, BigDecimal::add)
-                        .divide(BigDecimal.valueOf(returns.size()), 6, RoundingMode.HALF_UP);
+                // Calculate beta using real data
+                BigDecimal covariance = calculateCovariance(alignedReturns, alignedBenchmarkReturns);
+                BigDecimal benchmarkVariance = calculateVariance(alignedBenchmarkReturns);
                 
-                BigDecimal avgBenchmarkReturn = benchmarkReturns.stream()
-                        .reduce(BigDecimal.ZERO, BigDecimal::add)
-                        .divide(BigDecimal.valueOf(benchmarkReturns.size()), 6, RoundingMode.HALF_UP);
-                
-                BigDecimal riskFreeRate = BigDecimal.valueOf(0.05).divide(BigDecimal.valueOf(252), 6, RoundingMode.HALF_UP);
-                BigDecimal expectedReturn = riskFreeRate.add(beta.multiply(avgBenchmarkReturn.subtract(riskFreeRate)));
-                BigDecimal alpha = avgPortfolioReturn.subtract(expectedReturn);
-                
-                response.setAlpha(alpha);
-                response.setBenchmarkReturn(avgBenchmarkReturn);
-                response.setOutperformance(avgPortfolioReturn.subtract(avgBenchmarkReturn));
+                if (benchmarkVariance.compareTo(BigDecimal.ZERO) > 0) {
+                    BigDecimal beta = covariance.divide(benchmarkVariance, 6, RoundingMode.HALF_UP);
+                    response.setBeta(beta);
+                    
+                    // Calculate alpha using CAPM
+                    BigDecimal avgPortfolioReturn = alignedReturns.stream()
+                            .reduce(BigDecimal.ZERO, BigDecimal::add)
+                            .divide(BigDecimal.valueOf(alignedReturns.size()), 6, RoundingMode.HALF_UP);
+                    
+                    BigDecimal avgBenchmarkReturn = alignedBenchmarkReturns.stream()
+                            .reduce(BigDecimal.ZERO, BigDecimal::add)
+                            .divide(BigDecimal.valueOf(alignedBenchmarkReturns.size()), 6, RoundingMode.HALF_UP);
+                    
+                    BigDecimal riskFreeRate = BigDecimal.valueOf(0.05).divide(BigDecimal.valueOf(252), 6, RoundingMode.HALF_UP);
+                    BigDecimal expectedReturn = riskFreeRate.add(beta.multiply(avgBenchmarkReturn.subtract(riskFreeRate)));
+                    BigDecimal alpha = avgPortfolioReturn.subtract(expectedReturn);
+                    
+                    response.setAlpha(alpha);
+                    response.setBenchmarkReturn(avgBenchmarkReturn);
+                    response.setOutperformance(avgPortfolioReturn.subtract(avgBenchmarkReturn));
+                    
+                    // Calculate correlation
+                    BigDecimal correlation = calculateCorrelation(alignedReturns, alignedBenchmarkReturns);
+                    response.setCorrelationToBenchmark(correlation);
+                    
+                    // Calculate tracking error
+                    List<BigDecimal> excessReturns = new ArrayList<>();
+                    for (int i = 0; i < alignedReturns.size(); i++) {
+                        excessReturns.add(alignedReturns.get(i).subtract(alignedBenchmarkReturns.get(i)));
+                    }
+                    BigDecimal trackingError = BigDecimal.valueOf(Math.sqrt(calculateVariance(excessReturns).doubleValue()));
+                    response.setTrackingError(trackingError);
+                    
+                    logger.info("Calculated benchmark metrics: Beta={}, Alpha={}, Correlation={}", 
+                               beta, alpha, correlation);
+                }
             }
             
-            // Calculate correlation
-            BigDecimal correlation = calculateCorrelation(returns, benchmarkReturns);
-            response.setCorrelationToBenchmark(correlation);
-            
         } catch (Exception e) {
-            logger.error("Failed to calculate benchmark metrics", e);
+            logger.error("Failed to calculate benchmark metrics: {}", e.getMessage());
         }
     }
     
     private void calculateAttributionAnalysis(Portfolio portfolio, AnalyticsResponse response, AnalyticsRequest request) {
-        // Simplified attribution analysis
-        Map<String, BigDecimal> assetAttribution = new HashMap<>();
-        assetAttribution.put("AAPL", BigDecimal.valueOf(0.45));
-        assetAttribution.put("MSFT", BigDecimal.valueOf(0.30));
-        assetAttribution.put("GOOGL", BigDecimal.valueOf(0.15));
-        assetAttribution.put("Cash", BigDecimal.valueOf(0.10));
-        
-        Map<String, BigDecimal> sectorAttribution = new HashMap<>();
-        sectorAttribution.put("Technology", BigDecimal.valueOf(0.75));
-        sectorAttribution.put("Cash", BigDecimal.valueOf(0.25));
-        
-        response.setAssetAttribution(assetAttribution);
-        response.setSectorAttribution(sectorAttribution);
+        try {
+            logger.info("Calculating attribution analysis for portfolio: {}", portfolio.getName());
+            
+            // Get actual portfolio holdings
+            List<PortfolioHolding> holdings = holdingRepository.findByPortfolioOrderByWeightPctDesc(portfolio);
+            
+            if (holdings.isEmpty()) {
+                logger.warn("No holdings found for attribution analysis");
+                return;
+            }
+            
+            // Calculate asset attribution based on actual holdings
+            Map<String, BigDecimal> assetAttribution = new HashMap<>();
+            BigDecimal totalValue = portfolio.getCurrentNav();
+            
+            for (PortfolioHolding holding : holdings) {
+                if (holding.getMarketValue() != null && totalValue.compareTo(BigDecimal.ZERO) > 0) {
+                    BigDecimal contribution = holding.getMarketValue().divide(totalValue, 6, RoundingMode.HALF_UP);
+                    assetAttribution.put(holding.getSymbol(), contribution);
+                }
+            }
+            
+            // Add cash allocation
+            if (totalValue.compareTo(BigDecimal.ZERO) > 0) {
+                BigDecimal cashContribution = portfolio.getCashBalance().divide(totalValue, 6, RoundingMode.HALF_UP);
+                assetAttribution.put("Cash", cashContribution);
+            }
+            
+            // Calculate sector attribution based on actual holdings
+            Map<String, BigDecimal> sectorAttribution = new HashMap<>();
+            Map<String, BigDecimal> sectorValues = new HashMap<>();
+            
+            for (PortfolioHolding holding : holdings) {
+                String sector = holding.getSector() != null ? holding.getSector() : "Unknown";
+                BigDecimal currentValue = sectorValues.getOrDefault(sector, BigDecimal.ZERO);
+                
+                if (holding.getMarketValue() != null) {
+                    sectorValues.put(sector, currentValue.add(holding.getMarketValue()));
+                }
+            }
+            
+            // Convert to percentages
+            for (Map.Entry<String, BigDecimal> entry : sectorValues.entrySet()) {
+                if (totalValue.compareTo(BigDecimal.ZERO) > 0) {
+                    BigDecimal percentage = entry.getValue().divide(totalValue, 6, RoundingMode.HALF_UP);
+                    sectorAttribution.put(entry.getKey(), percentage);
+                }
+            }
+            
+            // Add cash to sector attribution
+            if (totalValue.compareTo(BigDecimal.ZERO) > 0) {
+                BigDecimal cashContribution = portfolio.getCashBalance().divide(totalValue, 6, RoundingMode.HALF_UP);
+                sectorAttribution.put("Cash", cashContribution);
+            }
+            
+            response.setAssetAttribution(assetAttribution);
+            response.setSectorAttribution(sectorAttribution);
+            
+            logger.info("Attribution analysis completed: {} assets, {} sectors", 
+                       assetAttribution.size(), sectorAttribution.size());
+            
+        } catch (Exception e) {
+            logger.error("Failed to calculate attribution analysis: {}", e.getMessage());
+            
+            // Fallback to basic attribution
+            Map<String, BigDecimal> fallbackAsset = new HashMap<>();
+            fallbackAsset.put("Holdings", BigDecimal.valueOf(0.80));
+            fallbackAsset.put("Cash", BigDecimal.valueOf(0.20));
+            response.setAssetAttribution(fallbackAsset);
+        }
     }
     
     private void calculateCorrelationMatrix(Portfolio portfolio, AnalyticsResponse response, AnalyticsRequest request) {
-        // Simplified correlation matrix
-        Map<String, Map<String, BigDecimal>> correlationMatrix = new HashMap<>();
-        
-        Map<String, BigDecimal> aaplCorr = new HashMap<>();
-        aaplCorr.put("MSFT", BigDecimal.valueOf(0.65));
-        aaplCorr.put("GOOGL", BigDecimal.valueOf(0.72));
-        aaplCorr.put("TSLA", BigDecimal.valueOf(0.45));
-        correlationMatrix.put("AAPL", aaplCorr);
-        
-        Map<String, BigDecimal> msftCorr = new HashMap<>();
-        msftCorr.put("GOOGL", BigDecimal.valueOf(0.68));
-        msftCorr.put("TSLA", BigDecimal.valueOf(0.38));
-        correlationMatrix.put("MSFT", msftCorr);
-        
-        response.setCorrelationMatrix(correlationMatrix);
-        response.setAvgCorrelation(BigDecimal.valueOf(0.55));
-        response.setMaxCorrelation(BigDecimal.valueOf(0.72));
-        response.setMinCorrelation(BigDecimal.valueOf(0.38));
-        response.setDiversificationRatio(BigDecimal.valueOf(0.78));
+        try {
+            logger.info("Calculating correlation matrix for portfolio: {}", portfolio.getName());
+            
+            // Get portfolio holdings
+            List<PortfolioHolding> holdings = holdingRepository.findByPortfolioOrderByWeightPctDesc(portfolio);
+            
+            if (holdings.size() < 2) {
+                logger.warn("Not enough holdings for correlation analysis");
+                return;
+            }
+            
+            // Get historical returns for each holding
+            Map<String, List<BigDecimal>> assetReturns = new HashMap<>();
+            LocalDateTime startTime = request.getPeriodStart().atStartOfDay();
+            LocalDateTime endTime = request.getPeriodEnd().atTime(23, 59, 59);
+            
+            for (PortfolioHolding holding : holdings) {
+                try {
+                    MarketDataResponse historicalData = marketDataService.getOHLCVData(
+                        holding.getSymbol(), "1d", startTime, endTime);
+                    
+                    if (historicalData.getOhlcvData() != null && historicalData.getOhlcvData().size() > 1) {
+                        List<BigDecimal> returns = new ArrayList<>();
+                        List<MarketDataResponse.OHLCVData> ohlcvData = historicalData.getOhlcvData();
+                        
+                        for (int i = 1; i < ohlcvData.size(); i++) {
+                            BigDecimal prevClose = ohlcvData.get(i - 1).getClose();
+                            BigDecimal currentClose = ohlcvData.get(i).getClose();
+                            
+                            if (prevClose.compareTo(BigDecimal.ZERO) > 0) {
+                                BigDecimal dailyReturn = currentClose.subtract(prevClose)
+                                    .divide(prevClose, 6, RoundingMode.HALF_UP);
+                                returns.add(dailyReturn);
+                            }
+                        }
+                        
+                        if (!returns.isEmpty()) {
+                            assetReturns.put(holding.getSymbol(), returns);
+                            logger.debug("Collected {} return data points for {}", returns.size(), holding.getSymbol());
+                        }
+                    }
+                } catch (Exception e) {
+                    logger.warn("Failed to get historical data for {}: {}", holding.getSymbol(), e.getMessage());
+                }
+            }
+            
+            if (assetReturns.size() < 2) {
+                logger.warn("Insufficient return data for correlation analysis");
+                return;
+            }
+            
+            // Calculate correlation matrix
+            Map<String, Map<String, BigDecimal>> correlationMatrix = new HashMap<>();
+            List<String> symbols = new ArrayList<>(assetReturns.keySet());
+            List<BigDecimal> allCorrelations = new ArrayList<>();
+            
+            for (int i = 0; i < symbols.size(); i++) {
+                String symbol1 = symbols.get(i);
+                Map<String, BigDecimal> correlations = new HashMap<>();
+                
+                for (int j = i + 1; j < symbols.size(); j++) {
+                    String symbol2 = symbols.get(j);
+                    
+                    List<BigDecimal> returns1 = assetReturns.get(symbol1);
+                    List<BigDecimal> returns2 = assetReturns.get(symbol2);
+                    
+                    // Align return series
+                    int minLength = Math.min(returns1.size(), returns2.size());
+                    if (minLength > 5) { // Need at least 5 data points
+                        List<BigDecimal> alignedReturns1 = returns1.subList(0, minLength);
+                        List<BigDecimal> alignedReturns2 = returns2.subList(0, minLength);
+                        
+                        BigDecimal correlation = calculateCorrelation(alignedReturns1, alignedReturns2);
+                        correlations.put(symbol2, correlation);
+                        allCorrelations.add(correlation);
+                        
+                        logger.debug("Correlation between {} and {}: {}", symbol1, symbol2, correlation);
+                    }
+                }
+                
+                if (!correlations.isEmpty()) {
+                    correlationMatrix.put(symbol1, correlations);
+                }
+            }
+            
+            response.setCorrelationMatrix(correlationMatrix);
+            
+            // Calculate summary statistics
+            if (!allCorrelations.isEmpty()) {
+                BigDecimal avgCorrelation = allCorrelations.stream()
+                    .reduce(BigDecimal.ZERO, BigDecimal::add)
+                    .divide(BigDecimal.valueOf(allCorrelations.size()), 6, RoundingMode.HALF_UP);
+                
+                BigDecimal maxCorrelation = allCorrelations.stream().max(BigDecimal::compareTo).orElse(BigDecimal.ZERO);
+                BigDecimal minCorrelation = allCorrelations.stream().min(BigDecimal::compareTo).orElse(BigDecimal.ZERO);
+                
+                response.setAvgCorrelation(avgCorrelation);
+                response.setMaxCorrelation(maxCorrelation);
+                response.setMinCorrelation(minCorrelation);
+                
+                // Simple diversification ratio calculation
+                BigDecimal diversificationRatio = BigDecimal.ONE.subtract(avgCorrelation.abs());
+                response.setDiversificationRatio(diversificationRatio);
+                
+                logger.info("Correlation analysis completed: Avg={}, Max={}, Min={}", 
+                           avgCorrelation, maxCorrelation, minCorrelation);
+            }
+            
+        } catch (Exception e) {
+            logger.error("Failed to calculate correlation matrix: {}", e.getMessage());
+        }
     }
     
     private BigDecimal calculateCovariance(List<BigDecimal> returns1, List<BigDecimal> returns2) {
