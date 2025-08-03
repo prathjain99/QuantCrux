@@ -243,9 +243,14 @@ public class ProductService {
             long daysToMaturity = ChronoUnit.DAYS.between(LocalDate.now(), product.getMaturityDate());
             BigDecimal timeToMaturity = BigDecimal.valueOf(daysToMaturity / 365.0);
             
-            // Get current market data
-            Map<String, Object> marketData = marketDataService.getMarketData(product.getUnderlyingAsset(), "1d");
-            BigDecimal currentPrice = (BigDecimal) marketData.get("price");
+            // Get current market data using the new MarketDataService
+            MarketDataResponse marketData = marketDataService.getLivePrice(product.getUnderlyingAsset());
+            BigDecimal currentPrice = marketData.getPrice();
+            
+            if (currentPrice == null) {
+                logger.warn("No current price available for {}, using base price", product.getUnderlyingAsset());
+                currentPrice = getBasePrice(product.getUnderlyingAsset());
+            }
             
             // Price based on product type and model
             PricingResult result = calculatePrice(product, currentPrice, timeToMaturity, request);

@@ -45,6 +45,9 @@ public class BacktestService {
     @Autowired
     private MarketDataService marketDataService;
     
+    @Autowired
+    private MarketDataCacheRepository marketDataCacheRepository;
+    
     private final ObjectMapper objectMapper = new ObjectMapper();
     
     public List<BacktestResponse> getUserBacktests(UserPrincipal userPrincipal) {
@@ -182,19 +185,62 @@ public class BacktestService {
     }
     
     private List<MarketData> loadMarketData(Backtest backtest) {
-        // Try to load from database first
+        // Try to load from database first (existing market_data table)
         LocalDateTime startDateTime = backtest.getStartDate().atStartOfDay();
         LocalDateTime endDateTime = backtest.getEndDate().atTime(23, 59, 59);
         
         List<MarketData> data = marketDataRepository.findBySymbolAndTimeframeAndTimestampBetween(
             backtest.getSymbol(), backtest.getTimeframe(), startDateTime, endDateTime);
         
-        // If no data in database, generate sample data
+        // If no data in database, try to fetch from external sources
         if (data.isEmpty()) {
-            data = generateSampleMarketData(backtest);
+            logger.info("No historical data found in database for {}, attempting to fetch from external sources", backtest.getSymbol());
+            data = fetchHistoricalMarketData(backtest);
+            
+            // If external fetch fails, fall back to generated data
+            if (data.isEmpty()) {
+                logger.warn("External data fetch failed for {}, using generated sample data", backtest.getSymbol());
+                data = generateSampleMarketData(backtest);
+            }
         }
         
         return data;
+    }
+    
+    private List<MarketData> fetchHistoricalMarketData(Backtest backtest) {
+        try {
+            // Use MarketDataService to fetch historical OHLCV data
+            MarketDataResponse response = marketDataService.getOHLCVData(
+                backtest.getSymbol(), 
+                backtest.getTimeframe(), 
+                backtest.getStartDate().atStartOfDay(), 
+                backtest.getEndDate().atTime(23, 59, 59)
+            );
+            
+            if (response.getOhlcvData() != null && !response.getOhlcvData().isEmpty()) {
+                // Convert MarketDataResponse.OHLCVData to MarketData entities
+                return response.getOhlcvData().stream()
+                    .map(ohlcv -> {
+                        MarketData marketData = new MarketData(
+                            backtest.getSymbol(),
+                            backtest.getTimeframe(),
+                            ohlcv.getTimestamp(),
+                            ohlcv.getOpen(),
+                            ohlcv.getHigh(),
+                            ohlcv.getLow(),
+                            ohlcv.getClose(),
+                            ohlcv.getVolume()
+                        );
+                        return marketData;
+                    })
+                    .collect(Collectors.toList());
+            }
+            
+        } catch (Exception e) {
+            logger.error("Failed to fetch historical data from external sources for symbol: {}", backtest.getSymbol(), e);
+        }
+        
+        return new ArrayList<>();
     }
     
     private List<MarketData> generateSampleMarketData(Backtest backtest) {

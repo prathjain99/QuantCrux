@@ -341,13 +341,33 @@ public class AnalyticsService {
     
     private void calculateBenchmarkMetrics(Portfolio portfolio, AnalyticsResponse response, AnalyticsRequest request, List<BigDecimal> returns) {
         try {
-            // Get benchmark data (simplified for demo)
-            Map<String, Object> benchmarkData = marketDataService.getMarketData(request.getBenchmarkSymbol(), "1d");
+            // Get benchmark data using the new MarketDataService
+            List<MarketDataResponse> benchmarkData = marketDataService.getBenchmarkData(
+                request.getBenchmarkSymbol(), 
+                request.getPeriodStart().atStartOfDay(), 
+                request.getPeriodEnd().atTime(23, 59, 59)
+            );
             
-            // Simulate benchmark returns
+            // Calculate benchmark returns from actual data
             List<BigDecimal> benchmarkReturns = new ArrayList<>();
-            for (int i = 0; i < returns.size(); i++) {
-                benchmarkReturns.add(BigDecimal.valueOf(random.nextGaussian() * 0.01)); // 1% daily volatility
+            
+            if (benchmarkData.size() > 1) {
+                for (int i = 1; i < benchmarkData.size(); i++) {
+                    BigDecimal prevPrice = benchmarkData.get(i - 1).getPrice();
+                    BigDecimal currentPrice = benchmarkData.get(i).getPrice();
+                    
+                    if (prevPrice != null && currentPrice != null && prevPrice.compareTo(BigDecimal.ZERO) > 0) {
+                        BigDecimal dailyReturn = currentPrice.subtract(prevPrice)
+                            .divide(prevPrice, 6, RoundingMode.HALF_UP);
+                        benchmarkReturns.add(dailyReturn);
+                    }
+                }
+            } else {
+                // Fallback to simulated benchmark returns if no data available
+                logger.warn("No benchmark data available for {}, using simulated returns", request.getBenchmarkSymbol());
+                for (int i = 0; i < returns.size(); i++) {
+                    benchmarkReturns.add(BigDecimal.valueOf(random.nextGaussian() * 0.01)); // 1% daily volatility
+                }
             }
             
             // Calculate beta

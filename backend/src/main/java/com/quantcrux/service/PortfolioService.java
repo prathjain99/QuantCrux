@@ -192,9 +192,14 @@ public class PortfolioService {
         
         for (PortfolioHolding holding : holdings) {
             try {
-                // Get latest market data
-                Map<String, Object> marketData = marketDataService.getMarketData(holding.getSymbol(), "1d");
-                BigDecimal latestPrice = (BigDecimal) marketData.get("price");
+                // Get latest market data using the new MarketDataService
+                MarketDataResponse marketData = marketDataService.getLivePrice(holding.getSymbol());
+                BigDecimal latestPrice = marketData.getPrice();
+                
+                if (latestPrice == null) {
+                    logger.warn("No current price available for {}, skipping update", holding.getSymbol());
+                    continue;
+                }
                 
                 // Update holding with latest price
                 holding.setLatestPrice(latestPrice);

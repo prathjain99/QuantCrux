@@ -41,8 +41,6 @@ public class TradeService {
     @Autowired
     private MarketDataService marketDataService;
     
-    private final Random random = new Random();
-    
     public List<OrderResponse> getUserOrders(UserPrincipal userPrincipal) {
         User user = userPrincipal.getUser();
         List<Order> orders = orderRepository.findByUserOrManagedPortfoliosOrderByCreatedAtDesc(user);
@@ -132,33 +130,31 @@ public class TradeService {
     }
     
     public List<MarketQuoteResponse> getMarketQuotes(List<String> symbols) {
-        List<MarketQuote> quotes = new ArrayList<>();
+        List<MarketQuoteResponse> quotes = new ArrayList<>();
         
         for (String symbol : symbols) {
-            Optional<MarketQuote> quote = marketQuoteRepository.findBySymbolAndInstrumentType(symbol, InstrumentType.ASSET);
-            if (quote.isPresent()) {
-                quotes.add(quote.get());
-            } else {
-                // Generate mock quote if not found
-                MarketQuote mockQuote = generateMockQuote(symbol);
+            try {
+                MarketDataResponse marketData = marketDataService.getLivePrice(symbol);
+                MarketQuoteResponse quote = convertMarketDataToQuote(marketData);
+                quotes.add(quote);
+            } catch (Exception e) {
+                logger.error("Failed to get market data for symbol: {}", symbol, e);
+                // Add a mock quote as fallback
+                MarketQuoteResponse mockQuote = generateMockQuoteResponse(symbol);
                 quotes.add(mockQuote);
             }
         }
         
-        return quotes.stream()
-                .map(this::convertQuoteToResponse)
-                .collect(Collectors.toList());
+        return quotes;
     }
     
     public MarketQuoteResponse getMarketQuote(String symbol, InstrumentType instrumentType) {
-        Optional<MarketQuote> quote = marketQuoteRepository.findBySymbolAndInstrumentType(symbol, instrumentType);
-        
-        if (quote.isPresent()) {
-            return convertQuoteToResponse(quote.get());
-        } else {
-            // Generate mock quote
-            MarketQuote mockQuote = generateMockQuote(symbol);
-            return convertQuoteToResponse(mockQuote);
+        try {
+            MarketDataResponse marketData = marketDataService.getLivePrice(symbol);
+            return convertMarketDataToQuote(marketData);
+        } catch (Exception e) {
+            logger.error("Failed to get market data for symbol: {}", symbol, e);
+            return generateMockQuoteResponse(symbol);
         }
     }
     
@@ -204,18 +200,22 @@ public class TradeService {
         BigDecimal price;
         
         if (request.getOrderType() == OrderType.MARKET) {
-            // Get current market price
-            MarketQuoteResponse quote = getMarketQuote(request.getSymbol(), request.getInstrumentType());
-            price = request.getSide() == OrderSide.BUY ? quote.getAskPrice() : quote.getBidPrice();
+            // Get current market data
+            MarketDataResponse marketData = marketDataService.getLivePrice(request.getSymbol());
+            price = request.getSide() == OrderSide.BUY ? marketData.getAskPrice() : marketData.getBidPrice();
             if (price == null) {
-                price = quote.getLastPrice();
+                price = marketData.getPrice();
             }
         } else if (request.getLimitPrice() != null) {
             price = request.getLimitPrice();
         } else {
             // Fallback to last price
-            MarketQuoteResponse quote = getMarketQuote(request.getSymbol(), request.getInstrumentType());
-            price = quote.getLastPrice();
+            MarketDataResponse marketData = marketDataService.getLivePrice(request.getSymbol());
+            price = marketData.getPrice();
+        }
+        
+        if (price == null) {
+            throw new RuntimeException("Unable to determine price for symbol: " + request.getSymbol());
         }
         
         BigDecimal totalCost = request.getQuantity().multiply(price);
@@ -228,14 +228,21 @@ public class TradeService {
         try {
             logger.info("Executing order {}", order.getId());
             
-            // Get market price
-            MarketQuoteResponse quote = getMarketQuote(order.getSymbol(), order.getInstrumentType());
-            BigDecimal executionPrice = order.getSide() == OrderSide.BUY ? quote.getAskPrice() : quote.getBidPrice();
+            // Get current market data
+            MarketDataResponse marketData = marketDataService.getLivePrice(order.getSymbol());
+            BigDecimal executionPrice = order.getSide() == OrderSide.BUY ? 
+                marketData.getAskPrice() : marketData.getBidPrice();
+            
             if (executionPrice == null) {
-                executionPrice = quote.getLastPrice();
+                executionPrice = marketData.getPrice();
             }
             
-            // Add realistic slippage
+            if (executionPrice == null) {
+                throw new RuntimeException("No execution price available for symbol: " + order.getSymbol());
+            }
+            
+            // Add realistic slippage (0.1% average)
+            Random random = new Random();
             BigDecimal slippage = BigDecimal.valueOf((random.nextGaussian() * 0.001)); // 0.1% average slippage
             executionPrice = executionPrice.multiply(BigDecimal.ONE.add(slippage));
             
@@ -265,7 +272,7 @@ public class TradeService {
             trade.setPrice(executionPrice);
             trade.setTotalAmount(totalAmount);
             trade.setFees(fees);
-            trade.setExpectedPrice(quote.getLastPrice());
+            trade.setExpectedPrice(marketData.getPrice());
             trade.setSlippage(slippage);
             trade.setStatus(TradeStatus.EXECUTED);
             trade.setExecutedAt(LocalDateTime.now());
@@ -345,8 +352,13 @@ public class TradeService {
         }
         
         try {
-            MarketQuoteResponse quote = getMarketQuote(position.getSymbol(), position.getInstrumentType());
-            BigDecimal currentPrice = quote.getLastPrice();
+            MarketDataResponse marketData = marketDataService.getLivePrice(position.getSymbol());
+            BigDecimal currentPrice = marketData.getPrice();
+            
+            if (currentPrice == null) {
+                logger.warn("No current price available for position: {}", position.getSymbol());
+                return;
+            }
             
             position.setMarketValue(position.getNetQuantity().multiply(currentPrice));
             position.setUnrealizedPnl(position.getMarketValue().subtract(position.getCostBasis()));
@@ -371,22 +383,57 @@ public class TradeService {
         portfolioRepository.save(portfolio);
     }
     
-    private MarketQuote generateMockQuote(String symbol) {
+    private MarketQuoteResponse convertMarketDataToQuote(MarketDataResponse marketData) {
+        MarketQuoteResponse quote = new MarketQuoteResponse();
+        quote.setSymbol(marketData.getSymbol());
+        quote.setInstrumentType(InstrumentType.ASSET);
+        quote.setLastPrice(marketData.getPrice());
+        quote.setBidPrice(marketData.getBidPrice());
+        quote.setAskPrice(marketData.getAskPrice());
+        quote.setVolume(marketData.getVolume());
+        quote.setDayChange(marketData.getDayChange());
+        quote.setDayChangePercent(marketData.getDayChangePercent());
+        quote.setQuoteTime(marketData.getDataTimestamp());
+        quote.setUpdatedAt(marketData.getDataTimestamp());
+        
+        // Calculate spread
+        if (marketData.getBidPrice() != null && marketData.getAskPrice() != null) {
+            BigDecimal spread = marketData.getAskPrice().subtract(marketData.getBidPrice());
+            quote.setSpread(spread);
+        }
+        
+        // Determine trend
+        if (marketData.getDayChangePercent() != null) {
+            if (marketData.getDayChangePercent().compareTo(BigDecimal.ZERO) > 0) {
+                quote.setTrend("UP");
+            } else if (marketData.getDayChangePercent().compareTo(BigDecimal.ZERO) < 0) {
+                quote.setTrend("DOWN");
+            } else {
+                quote.setTrend("FLAT");
+            }
+        }
+        
+        return quote;
+    }
+    
+    private MarketQuoteResponse generateMockQuoteResponse(String symbol) {
         BigDecimal basePrice = getBasePrice(symbol);
+        Random random = new Random();
         BigDecimal change = BigDecimal.valueOf(random.nextGaussian() * 0.02); // 2% volatility
         BigDecimal lastPrice = basePrice.multiply(BigDecimal.ONE.add(change));
         
-        MarketQuote quote = new MarketQuote();
+        MarketQuoteResponse quote = new MarketQuoteResponse();
         quote.setSymbol(symbol);
         quote.setInstrumentType(InstrumentType.ASSET);
         quote.setLastPrice(lastPrice);
         quote.setBidPrice(lastPrice.multiply(BigDecimal.valueOf(0.9995))); // 0.05% spread
         quote.setAskPrice(lastPrice.multiply(BigDecimal.valueOf(1.0005)));
-        quote.setOpenPrice(basePrice);
-        quote.setHighPrice(lastPrice.multiply(BigDecimal.valueOf(1.01)));
-        quote.setLowPrice(lastPrice.multiply(BigDecimal.valueOf(0.99)));
-        quote.setPrevClose(basePrice);
         quote.setVolume(BigDecimal.valueOf(100000 + random.nextInt(900000)));
+        quote.setDayChange(change.multiply(basePrice));
+        quote.setDayChangePercent(change);
+        quote.setQuoteTime(LocalDateTime.now());
+        quote.setUpdatedAt(LocalDateTime.now());
+        quote.setTrend(change.compareTo(BigDecimal.ZERO) >= 0 ? "UP" : "DOWN");
         
         return quote;
     }
@@ -525,10 +572,10 @@ public class TradeService {
         
         // Get current market data
         try {
-            MarketQuoteResponse quote = getMarketQuote(position.getSymbol(), position.getInstrumentType());
-            response.setCurrentPrice(quote.getLastPrice());
-            response.setDayChange(quote.getDayChange());
-            response.setDayChangePercent(quote.getDayChangePercent());
+            MarketDataResponse marketData = marketDataService.getLivePrice(position.getSymbol());
+            response.setCurrentPrice(marketData.getPrice());
+            response.setDayChange(marketData.getDayChange());
+            response.setDayChangePercent(marketData.getDayChangePercent());
         } catch (Exception e) {
             logger.error("Failed to get market data for position {}", position.getId(), e);
         }
@@ -551,44 +598,21 @@ public class TradeService {
         return response;
     }
     
-    private MarketQuoteResponse convertQuoteToResponse(MarketQuote quote) {
-        MarketQuoteResponse response = new MarketQuoteResponse();
-        response.setSymbol(quote.getSymbol());
-        response.setInstrumentType(quote.getInstrumentType());
-        response.setBidPrice(quote.getBidPrice());
-        response.setAskPrice(quote.getAskPrice());
-        response.setLastPrice(quote.getLastPrice());
-        response.setVolume(quote.getVolume());
-        response.setOpenPrice(quote.getOpenPrice());
-        response.setHighPrice(quote.getHighPrice());
-        response.setLowPrice(quote.getLowPrice());
-        response.setPrevClose(quote.getPrevClose());
-        response.setQuoteTime(quote.getQuoteTime());
-        response.setUpdatedAt(quote.getUpdatedAt());
-        
-        // Calculate day change
-        if (quote.getPrevClose() != null) {
-            BigDecimal dayChange = quote.getLastPrice().subtract(quote.getPrevClose());
-            BigDecimal dayChangePct = dayChange.divide(quote.getPrevClose(), 6, RoundingMode.HALF_UP);
-            response.setDayChange(dayChange);
-            response.setDayChangePercent(dayChangePct);
-            
-            // Determine trend
-            if (dayChange.compareTo(BigDecimal.ZERO) > 0) {
-                response.setTrend("UP");
-            } else if (dayChange.compareTo(BigDecimal.ZERO) < 0) {
-                response.setTrend("DOWN");
-            } else {
-                response.setTrend("FLAT");
-            }
+    private BigDecimal getBasePrice(String symbol) {
+        switch (symbol.toUpperCase()) {
+            case "AAPL": return BigDecimal.valueOf(172.50);
+            case "MSFT": return BigDecimal.valueOf(415.75);
+            case "GOOGL": return BigDecimal.valueOf(175.85);
+            case "TSLA": return BigDecimal.valueOf(248.50);
+            case "AMZN": return BigDecimal.valueOf(185.90);
+            case "NVDA": return BigDecimal.valueOf(875.25);
+            case "META": return BigDecimal.valueOf(485.60);
+            case "NFLX": return BigDecimal.valueOf(485.30);
+            case "BTCUSD": return BigDecimal.valueOf(97250.00);
+            case "ETHUSD": return BigDecimal.valueOf(3420.50);
+            case "SPY": return BigDecimal.valueOf(483.61);
+            case "QQQ": return BigDecimal.valueOf(425.80);
+            default: return BigDecimal.valueOf(100.00);
         }
-        
-        // Calculate spread
-        if (quote.getBidPrice() != null && quote.getAskPrice() != null) {
-            BigDecimal spread = quote.getAskPrice().subtract(quote.getBidPrice());
-            response.setSpread(spread);
-        }
-        
-        return response;
     }
 }
