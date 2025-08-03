@@ -109,14 +109,14 @@ const ProductBuilderPage: React.FC = () => {
       [name]: (() => {
         // Handle optional UUID fields
         if (name === 'linkedStrategyId') {
-          return value === '' ? undefined : value;
+          return value === '' ? null : value;
         }
         
         // Handle optional number fields
         if (['strikePrice', 'barrierLevel', 'simulationRuns'].includes(name)) {
-          if (value === '') return undefined;
+          if (value === '') return null;
           const numValue = parseFloat(value);
-          return isNaN(numValue) ? undefined : numValue;
+          return isNaN(numValue) ? null : numValue;
         }
         
         // Handle required number fields
@@ -127,7 +127,7 @@ const ProductBuilderPage: React.FC = () => {
         
         // Handle optional date fields
         if (['issueDate', 'settlementDate'].includes(name)) {
-          return value === '' ? undefined : value;
+          return value === '' ? null : value;
         }
         
         // Handle all other fields as strings
