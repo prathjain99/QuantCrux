@@ -404,7 +404,7 @@ const ProductBuilderPage: React.FC = () => {
                           payoffRate: isNaN(value) ? undefined : value
                         }));
                       }}
-                      value={formData.settlementDate ?? ''}
+                      className="w-full px-4 py-3 bg-slate-800/50 border border-slate-600 rounded-lg text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent transition-all duration-200"
                       placeholder="12.0"
                       step="0.1"
                     />
@@ -444,6 +444,22 @@ const ProductBuilderPage: React.FC = () => {
                         required
                       />
                     </div>
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-slate-300 mb-2">
+                    Settlement Date (Optional)
+                  </label>
+                  <div className="relative">
+                    <Calendar className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-slate-400" />
+                    <input
+                      type="date"
+                      name="settlementDate"
+                      value={formData.settlementDate ?? ''}
+                      onChange={handleInputChange}
+                      className="w-full pl-10 pr-4 py-3 bg-slate-800/50 border border-slate-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent transition-all duration-200"
+                    />
                   </div>
                 </div>
 
