@@ -37,6 +37,9 @@ const BacktestModal: React.FC<BacktestModalProps> = ({
       [name]: name === 'initialCapital' || name === 'commissionRate' || name === 'slippageRate' 
         ? parseFloat(value) || 0 
         : value
+    }
+    )
+    )
     // Navigate to the backtest results page
     window.location.href = `/backtests/${backtestId}`;
   };
