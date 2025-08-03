@@ -24,7 +24,7 @@ public interface StrategyRepository extends JpaRepository<Strategy, UUID> {
     @Query("SELECT s FROM Strategy s WHERE s.user = :user AND s.name ILIKE %:name%")
     List<Strategy> findByUserAndNameContaining(@Param("user") User user, @Param("name") String name);
     
-    @Query("SELECT s FROM Strategy s WHERE s.user = :user AND :tag = ANY(s.tags)")
+    @Query("SELECT s FROM Strategy s JOIN s.tags t WHERE s.user = :user AND t = :tag")
     List<Strategy> findByUserAndTag(@Param("user") User user, @Param("tag") String tag);
     
     @Query("SELECT COUNT(s) FROM Strategy s WHERE s.user = :user AND s.status = :status")

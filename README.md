@@ -16,9 +16,10 @@ A professional-grade full-stack quantitative finance platform built with React, 
 createdb quantcrux
 ```
 
-2. Run the database schema:
+2. Run the database schemas:
 ```bash
 psql -d quantcrux -f supabase/migrations/create_user_management_fixed.sql
+psql -d quantcrux -f supabase/migrations/create_strategy_schema_fixed.sql
 ```
 
 ### Backend Setup

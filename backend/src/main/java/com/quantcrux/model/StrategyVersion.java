@@ -3,8 +3,6 @@ package com.quantcrux.model;
 import jakarta.persistence.*;
 import jakarta.validation.constraints.NotNull;
 import org.hibernate.annotations.CreationTimestamp;
-import org.hibernate.annotations.JdbcTypeCode;
-import org.hibernate.type.SqlTypes;
 
 import java.time.LocalDateTime;
 import java.util.UUID;
@@ -25,7 +23,6 @@ public class StrategyVersion {
     private Integer versionNumber;
     
     @NotNull
-    @JdbcTypeCode(SqlTypes.JSON)
     @Column(name = "config_json", nullable = false, columnDefinition = "jsonb")
     private String configJson;
     

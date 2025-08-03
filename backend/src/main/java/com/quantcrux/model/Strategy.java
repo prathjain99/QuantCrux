@@ -5,8 +5,7 @@ import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import org.hibernate.annotations.CreationTimestamp;
 import org.hibernate.annotations.UpdateTimestamp;
-import org.hibernate.annotations.JdbcTypeCode;
-import org.hibernate.type.SqlTypes;
+import org.hibernate.annotations.Type;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -39,7 +38,6 @@ public class Strategy {
     private String timeframe = "1m";
     
     @NotNull
-    @JdbcTypeCode(SqlTypes.JSON)
     @Column(name = "config_json", nullable = false, columnDefinition = "jsonb")
     private String configJson;
     
@@ -47,7 +45,8 @@ public class Strategy {
     @Column(nullable = false)
     private StrategyStatus status = StrategyStatus.DRAFT;
     
-    @JdbcTypeCode(SqlTypes.ARRAY)
+    @ElementCollection
+    @CollectionTable(name = "strategy_tags", joinColumns = @JoinColumn(name = "strategy_id"))
     @Column(name = "tags", columnDefinition = "text[]")
     private List<String> tags;
     

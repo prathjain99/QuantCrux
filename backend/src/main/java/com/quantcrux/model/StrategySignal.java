@@ -2,8 +2,6 @@ package com.quantcrux.model;
 
 import jakarta.persistence.*;
 import org.hibernate.annotations.CreationTimestamp;
-import org.hibernate.annotations.JdbcTypeCode;
-import org.hibernate.type.SqlTypes;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
@@ -29,11 +27,11 @@ public class StrategySignal {
     @Column(precision = 15, scale = 6)
     private BigDecimal price;
     
-    @JdbcTypeCode(SqlTypes.JSON)
     @Column(name = "indicator_values", columnDefinition = "jsonb")
     private String indicatorValues;
     
-    @JdbcTypeCode(SqlTypes.ARRAY)
+    @ElementCollection
+    @CollectionTable(name = "signal_matched_rules", joinColumns = @JoinColumn(name = "signal_id"))
     @Column(name = "matched_rules", columnDefinition = "text[]")
     private List<String> matchedRules;
     
