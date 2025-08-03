@@ -452,19 +452,207 @@ public class ProductService {
     }
     
     private void calculateGreeks(PricingResult result, Product product, BigDecimal currentPrice, BigDecimal timeToMaturity, ProductRequest request) {
-        // Simplified Greeks calculation using finite differences
-        BigDecimal epsilon = BigDecimal.valueOf(0.01);
+        // Calculate Greeks using finite differences method
+        BigDecimal epsilon = BigDecimal.valueOf(0.01); // 1% bump
+        BigDecimal timeEpsilon = BigDecimal.valueOf(1.0 / 365.0); // 1 day
+        BigDecimal volEpsilon = BigDecimal.valueOf(0.01); // 1% vol bump
+        BigDecimal rateEpsilon = BigDecimal.valueOf(0.0001); // 1bp rate bump
         
-        // Delta: sensitivity to underlying price
+        // Get base price
+        BigDecimal basePrice = calculateSinglePrice(product, currentPrice, timeToMaturity, request);
+        
+        // Delta: sensitivity to underlying price (∂V/∂S)
         BigDecimal priceUp = currentPrice.multiply(BigDecimal.ONE.add(epsilon));
         BigDecimal priceDown = currentPrice.multiply(BigDecimal.ONE.subtract(epsilon));
         
-        // For simplicity, use approximations
-        result.setDelta(BigDecimal.valueOf(0.40 + random.nextGaussian() * 0.20));
-        result.setGamma(BigDecimal.valueOf(0.05 + random.nextGaussian() * 0.02));
-        result.setTheta(BigDecimal.valueOf(-1.0 - random.nextGaussian() * 0.50));
-        result.setVega(BigDecimal.valueOf(0.10 + random.nextGaussian() * 0.05));
-        result.setRho(BigDecimal.valueOf(0.02 + random.nextGaussian() * 0.01));
+        BigDecimal priceUpValue = calculateSinglePrice(product, priceUp, timeToMaturity, request);
+        BigDecimal priceDownValue = calculateSinglePrice(product, priceDown, timeToMaturity, request);
+        
+        BigDecimal delta = priceUpValue.subtract(priceDownValue)
+                .divide(priceUp.subtract(priceDown), 6, RoundingMode.HALF_UP);
+        result.setDelta(delta);
+        
+        // Gamma: sensitivity of delta to underlying price (∂²V/∂S²)
+        BigDecimal gamma = priceUpValue.add(priceDownValue).subtract(basePrice.multiply(BigDecimal.valueOf(2)))
+                .divide(currentPrice.multiply(epsilon).pow(2), 6, RoundingMode.HALF_UP);
+        result.setGamma(gamma);
+        
+        // Theta: sensitivity to time decay (∂V/∂t)
+        if (timeToMaturity.compareTo(timeEpsilon) > 0) {
+            BigDecimal timeDown = timeToMaturity.subtract(timeEpsilon);
+            BigDecimal timeDownValue = calculateSinglePrice(product, currentPrice, timeDown, request);
+            BigDecimal theta = timeDownValue.subtract(basePrice).divide(timeEpsilon, 6, RoundingMode.HALF_UP);
+            result.setTheta(theta);
+        } else {
+            result.setTheta(BigDecimal.valueOf(-1.0)); // Default time decay
+        }
+        
+        // Vega: sensitivity to volatility (∂V/∂σ)
+        BigDecimal volUp = request.getImpliedVolatility().add(volEpsilon);
+        ProductRequest volUpRequest = cloneRequest(request);
+        volUpRequest.setImpliedVolatility(volUp);
+        
+        BigDecimal volUpValue = calculateSinglePrice(product, currentPrice, timeToMaturity, volUpRequest);
+        BigDecimal vega = volUpValue.subtract(basePrice).divide(volEpsilon, 6, RoundingMode.HALF_UP);
+        result.setVega(vega);
+        
+        // Rho: sensitivity to interest rate (∂V/∂r)
+        BigDecimal rateUp = request.getRiskFreeRate().add(rateEpsilon);
+        ProductRequest rateUpRequest = cloneRequest(request);
+        rateUpRequest.setRiskFreeRate(rateUp);
+        
+        BigDecimal rateUpValue = calculateSinglePrice(product, currentPrice, timeToMaturity, rateUpRequest);
+        BigDecimal rho = rateUpValue.subtract(basePrice).divide(rateEpsilon, 6, RoundingMode.HALF_UP);
+        result.setRho(rho);
+    }
+    
+    private BigDecimal calculateSinglePrice(Product product, BigDecimal currentPrice, BigDecimal timeToMaturity, ProductRequest request) {
+        // Simplified single-path pricing for Greeks calculation
+        try {
+            PricingResult tempResult = calculatePrice(product, currentPrice, timeToMaturity, request);
+            return tempResult.getFairValue();
+        } catch (Exception e) {
+            logger.error("Failed to calculate single price for Greeks", e);
+            return product.getNotional().multiply(BigDecimal.valueOf(0.95));
+        }
+    }
+    
+    private ProductRequest cloneRequest(ProductRequest original) {
+        ProductRequest clone = new ProductRequest();
+        clone.setPricingModel(original.getPricingModel());
+        clone.setSimulationRuns(Math.min(1000, original.getSimulationRuns())); // Reduce for Greeks calc
+        clone.setRiskFreeRate(original.getRiskFreeRate());
+        clone.setImpliedVolatility(original.getImpliedVolatility());
+        return clone;
+    }
+    
+    private BigDecimal calculateHistoricalVolatility(String symbol) {
+        try {
+            // Get 30 days of historical data
+            LocalDateTime endTime = LocalDateTime.now();
+            LocalDateTime startTime = endTime.minusDays(30);
+            
+            MarketDataResponse historicalData = marketDataService.getOHLCVData(symbol, "1d", startTime, endTime);
+            
+            if (historicalData.getOhlcvData() != null && historicalData.getOhlcvData().size() > 1) {
+                List<BigDecimal> returns = new ArrayList<>();
+                List<MarketDataResponse.OHLCVData> ohlcvData = historicalData.getOhlcvData();
+                
+                for (int i = 1; i < ohlcvData.size(); i++) {
+                    BigDecimal prevClose = ohlcvData.get(i - 1).getClose();
+                    BigDecimal currentClose = ohlcvData.get(i).getClose();
+                    
+                    if (prevClose.compareTo(BigDecimal.ZERO) > 0) {
+                        BigDecimal dailyReturn = BigDecimal.valueOf(Math.log(currentClose.divide(prevClose, 10, RoundingMode.HALF_UP).doubleValue()));
+                        returns.add(dailyReturn);
+                    }
+                }
+                
+                if (returns.size() > 1) {
+                    // Calculate standard deviation of log returns
+                    BigDecimal mean = returns.stream()
+                            .reduce(BigDecimal.ZERO, BigDecimal::add)
+                            .divide(BigDecimal.valueOf(returns.size()), 10, RoundingMode.HALF_UP);
+                    
+                    BigDecimal variance = returns.stream()
+                            .map(r -> r.subtract(mean).pow(2))
+                            .reduce(BigDecimal.ZERO, BigDecimal::add)
+                            .divide(BigDecimal.valueOf(returns.size() - 1), 10, RoundingMode.HALF_UP);
+                    
+                    // Annualize volatility
+                    BigDecimal volatility = BigDecimal.valueOf(Math.sqrt(variance.doubleValue() * 252));
+                    
+                    logger.info("Calculated historical volatility for {}: {}", symbol, volatility);
+                    return volatility;
+                }
+            }
+            
+        } catch (Exception e) {
+            logger.error("Failed to calculate historical volatility for {}", symbol, e);
+        }
+        
+        // Fallback to asset-specific default volatilities
+        return getDefaultVolatility(symbol);
+    }
+    
+    private BigDecimal getDefaultVolatility(String symbol) {
+        switch (symbol.toUpperCase()) {
+            case "BTCUSD":
+            case "ETHUSD":
+            case "ADAUSD":
+            case "SOLUSD":
+                return BigDecimal.valueOf(0.60); // 60% for crypto
+            case "TSLA":
+                return BigDecimal.valueOf(0.40); // 40% for volatile stocks
+            case "SPY":
+            case "QQQ":
+            case "VTI":
+                return BigDecimal.valueOf(0.15); // 15% for ETFs
+            default:
+                return BigDecimal.valueOf(0.25); // 25% for regular stocks
+        }
+    }
+    
+    private boolean isPathDependentProduct(Product product) {
+        return product.getProductType() == ProductType.BARRIER_OPTION ||
+               product.getProductType() == ProductType.KNOCK_IN_OPTION ||
+               product.getProductType() == ProductType.KNOCK_OUT_OPTION;
+    }
+    
+    private double calculateStrategyReturn(Product product, BigDecimal finalPrice, BigDecimal initialPrice) {
+        if (product.getLinkedStrategy() != null) {
+            // Calculate return based on underlying asset performance
+            BigDecimal assetReturn = finalPrice.subtract(initialPrice).divide(initialPrice, 6, RoundingMode.HALF_UP);
+            
+            // Apply strategy alpha/beta (simplified)
+            double alpha = 0.02; // 2% annual alpha
+            double beta = 0.8;   // 80% correlation to underlying
+            
+            return alpha + (beta * assetReturn.doubleValue());
+        }
+        
+        // Fallback to market return
+        return finalPrice.subtract(initialPrice).divide(initialPrice, 6, RoundingMode.HALF_UP).doubleValue();
+    }
+    
+    private double calculateCustomPayoff(Product product, BigDecimal finalPrice, BigDecimal initialPrice, List<Double> pricePath) {
+        try {
+            // Parse custom payoff configuration
+            com.fasterxml.jackson.databind.JsonNode config = objectMapper.readTree(product.getConfigJson());
+            com.fasterxml.jackson.databind.JsonNode payoffConfig = config.get("custom_payoff");
+            
+            if (payoffConfig != null) {
+                String payoffType = payoffConfig.path("type").asText("linear");
+                
+                switch (payoffType.toLowerCase()) {
+                    case "linear":
+                        double slope = payoffConfig.path("slope").asDouble(1.0);
+                        double intercept = payoffConfig.path("intercept").asDouble(0.0);
+                        return slope * finalPrice.doubleValue() + intercept;
+                        
+                    case "step":
+                        double threshold = payoffConfig.path("threshold").asDouble(initialPrice.doubleValue());
+                        double lowPayoff = payoffConfig.path("low_payoff").asDouble(0.0);
+                        double highPayoff = payoffConfig.path("high_payoff").asDouble(product.getNotional().doubleValue());
+                        return finalPrice.doubleValue() >= threshold ? highPayoff : lowPayoff;
+                        
+                    case "range":
+                        double lowerBound = payoffConfig.path("lower_bound").asDouble(initialPrice.doubleValue() * 0.9);
+                        double upperBound = payoffConfig.path("upper_bound").asDouble(initialPrice.doubleValue() * 1.1);
+                        if (finalPrice.doubleValue() >= lowerBound && finalPrice.doubleValue() <= upperBound) {
+                            return product.getNotional().multiply(product.getPayoffRate() != null ? product.getPayoffRate() : BigDecimal.valueOf(0.1)).doubleValue();
+                        }
+                        return 0.0;
+                }
+            }
+            
+        } catch (Exception e) {
+            logger.error("Failed to calculate custom payoff", e);
+        }
+        
+        // Default to simple participation
+        double participation = product.getPayoffRate() != null ? product.getPayoffRate().doubleValue() : 1.0;
+        return Math.max(0, (finalPrice.doubleValue() - initialPrice.doubleValue()) * participation);
     }
     
     private void generatePayoffCurve(Product product) {

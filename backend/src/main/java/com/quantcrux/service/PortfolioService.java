@@ -260,7 +260,9 @@ public class PortfolioService {
         List<PortfolioHistory> history = historyRepository.findByPortfolioAndDateAfter(portfolio, fromDate);
         
         if (history.size() < 2) {
-            return; // Not enough data for risk metrics
+            // Calculate basic metrics from current holdings if no history
+            calculateBasicRiskMetrics(portfolio);
+            return;
         }
         
         List<BigDecimal> returns = history.stream()
@@ -269,10 +271,11 @@ public class PortfolioService {
                 .collect(Collectors.toList());
         
         if (returns.isEmpty()) {
+            calculateBasicRiskMetrics(portfolio);
             return;
         }
         
-        // Calculate volatility (standard deviation of returns)
+        // Calculate portfolio volatility (annualized)
         BigDecimal avgReturn = returns.stream()
                 .reduce(BigDecimal.ZERO, BigDecimal::add)
                 .divide(BigDecimal.valueOf(returns.size()), 6, RoundingMode.HALF_UP);
@@ -280,12 +283,12 @@ public class PortfolioService {
         BigDecimal variance = returns.stream()
                 .map(r -> r.subtract(avgReturn).pow(2))
                 .reduce(BigDecimal.ZERO, BigDecimal::add)
-                .divide(BigDecimal.valueOf(returns.size()), 6, RoundingMode.HALF_UP);
+                .divide(BigDecimal.valueOf(returns.size() - 1), 6, RoundingMode.HALF_UP); // Sample variance
         
-        BigDecimal volatility = BigDecimal.valueOf(Math.sqrt(variance.doubleValue()));
+        BigDecimal volatility = BigDecimal.valueOf(Math.sqrt(variance.doubleValue() * 252)); // Annualized
         portfolio.setVolatility(volatility);
         
-        // Calculate VaR (95% confidence, 1-day)
+        // Calculate Value at Risk (95% confidence, 1-day)
         List<BigDecimal> sortedReturns = returns.stream()
                 .sorted()
                 .collect(Collectors.toList());
@@ -297,15 +300,197 @@ public class PortfolioService {
             portfolio.setVar95(var95);
         }
         
-        // Simplified Sharpe ratio (assuming 5% risk-free rate)
-        BigDecimal riskFreeRate = BigDecimal.valueOf(0.05).divide(BigDecimal.valueOf(252), 6, RoundingMode.HALF_UP); // Daily
+        // Calculate Sharpe ratio (annualized)
+        BigDecimal annualizedReturn = avgReturn.multiply(BigDecimal.valueOf(252));
+        BigDecimal riskFreeRate = BigDecimal.valueOf(0.05); // 5% annual risk-free rate
+        
         if (volatility.compareTo(BigDecimal.ZERO) > 0) {
-            BigDecimal sharpeRatio = avgReturn.subtract(riskFreeRate).divide(volatility, 6, RoundingMode.HALF_UP);
+            BigDecimal sharpeRatio = annualizedReturn.subtract(riskFreeRate).divide(volatility, 6, RoundingMode.HALF_UP);
             portfolio.setSharpeRatio(sharpeRatio);
         }
         
+        // Calculate beta against benchmark
+        calculatePortfolioBeta(portfolio, returns);
+        
         // Calculate max drawdown
         calculateMaxDrawdown(portfolio, history);
+    }
+    
+    private void calculateBasicRiskMetrics(Portfolio portfolio) {
+        try {
+            // Calculate portfolio-level volatility from holdings
+            List<PortfolioHolding> holdings = holdingRepository.findByPortfolio(portfolio);
+            
+            if (holdings.isEmpty()) {
+                return;
+            }
+            
+            BigDecimal portfolioVolatility = BigDecimal.ZERO;
+            BigDecimal totalWeight = BigDecimal.ZERO;
+            
+            for (PortfolioHolding holding : holdings) {
+                if (holding.getWeightPct() != null && holding.getWeightPct().compareTo(BigDecimal.ZERO) > 0) {
+                    BigDecimal weight = holding.getWeightPct().divide(BigDecimal.valueOf(100), 6, RoundingMode.HALF_UP);
+                    BigDecimal assetVolatility = getAssetVolatility(holding.getSymbol());
+                    
+                    portfolioVolatility = portfolioVolatility.add(weight.multiply(assetVolatility));
+                    totalWeight = totalWeight.add(weight);
+                }
+            }
+            
+            if (totalWeight.compareTo(BigDecimal.ZERO) > 0) {
+                portfolioVolatility = portfolioVolatility.divide(totalWeight, 6, RoundingMode.HALF_UP);
+                portfolio.setVolatility(portfolioVolatility);
+                
+                // Estimate VaR based on volatility (assuming normal distribution)
+                BigDecimal var95 = portfolio.getCurrentNav().multiply(portfolioVolatility)
+                        .multiply(BigDecimal.valueOf(1.645)) // 95% confidence z-score
+                        .divide(BigDecimal.valueOf(Math.sqrt(252)), 6, RoundingMode.HALF_UP); // Daily VaR
+                portfolio.setVar95(var95);
+            }
+            
+        } catch (Exception e) {
+            logger.error("Failed to calculate basic risk metrics", e);
+        }
+    }
+    
+    private BigDecimal getAssetVolatility(String symbol) {
+        try {
+            // Get 30 days of historical data to calculate volatility
+            LocalDateTime endTime = LocalDateTime.now();
+            LocalDateTime startTime = endTime.minusDays(30);
+            
+            MarketDataResponse historicalData = marketDataService.getOHLCVData(symbol, "1d", startTime, endTime);
+            
+            if (historicalData.getOhlcvData() != null && historicalData.getOhlcvData().size() > 1) {
+                List<BigDecimal> returns = new ArrayList<>();
+                List<MarketDataResponse.OHLCVData> ohlcvData = historicalData.getOhlcvData();
+                
+                for (int i = 1; i < ohlcvData.size(); i++) {
+                    BigDecimal prevClose = ohlcvData.get(i - 1).getClose();
+                    BigDecimal currentClose = ohlcvData.get(i).getClose();
+                    
+                    if (prevClose.compareTo(BigDecimal.ZERO) > 0) {
+                        BigDecimal logReturn = BigDecimal.valueOf(Math.log(currentClose.divide(prevClose, 10, RoundingMode.HALF_UP).doubleValue()));
+                        returns.add(logReturn);
+                    }
+                }
+                
+                if (returns.size() > 1) {
+                    BigDecimal mean = returns.stream()
+                            .reduce(BigDecimal.ZERO, BigDecimal::add)
+                            .divide(BigDecimal.valueOf(returns.size()), 10, RoundingMode.HALF_UP);
+                    
+                    BigDecimal variance = returns.stream()
+                            .map(r -> r.subtract(mean).pow(2))
+                            .reduce(BigDecimal.ZERO, BigDecimal::add)
+                            .divide(BigDecimal.valueOf(returns.size() - 1), 10, RoundingMode.HALF_UP);
+                    
+                    // Annualized volatility
+                    return BigDecimal.valueOf(Math.sqrt(variance.doubleValue() * 252));
+                }
+            }
+            
+        } catch (Exception e) {
+            logger.error("Failed to calculate volatility for {}", symbol, e);
+        }
+        
+        // Fallback to default volatilities by asset type
+        switch (symbol.toUpperCase()) {
+            case "BTCUSD":
+            case "ETHUSD":
+                return BigDecimal.valueOf(0.60); // 60% for crypto
+            case "TSLA":
+                return BigDecimal.valueOf(0.40); // 40% for volatile stocks
+            case "SPY":
+            case "QQQ":
+                return BigDecimal.valueOf(0.15); // 15% for ETFs
+            default:
+                return BigDecimal.valueOf(0.25); // 25% for regular stocks
+        }
+    }
+    
+    private void calculatePortfolioBeta(Portfolio portfolio, List<BigDecimal> portfolioReturns) {
+        try {
+            // Get benchmark returns for the same period
+            String benchmarkSymbol = portfolio.getBenchmarkSymbol();
+            LocalDateTime endTime = LocalDateTime.now();
+            LocalDateTime startTime = endTime.minusDays(portfolioReturns.size() + 5); // Extra buffer
+            
+            MarketDataResponse benchmarkData = marketDataService.getOHLCVData(benchmarkSymbol, "1d", startTime, endTime);
+            
+            if (benchmarkData.getOhlcvData() != null && benchmarkData.getOhlcvData().size() > 1) {
+                List<BigDecimal> benchmarkReturns = new ArrayList<>();
+                List<MarketDataResponse.OHLCVData> ohlcvData = benchmarkData.getOhlcvData();
+                
+                for (int i = 1; i < ohlcvData.size(); i++) {
+                    BigDecimal prevClose = ohlcvData.get(i - 1).getClose();
+                    BigDecimal currentClose = ohlcvData.get(i).getClose();
+                    
+                    if (prevClose.compareTo(BigDecimal.ZERO) > 0) {
+                        BigDecimal dailyReturn = currentClose.subtract(prevClose).divide(prevClose, 6, RoundingMode.HALF_UP);
+                        benchmarkReturns.add(dailyReturn);
+                    }
+                }
+                
+                // Align return series
+                int minLength = Math.min(portfolioReturns.size(), benchmarkReturns.size());
+                if (minLength > 5) {
+                    List<BigDecimal> alignedPortfolioReturns = portfolioReturns.subList(0, minLength);
+                    List<BigDecimal> alignedBenchmarkReturns = benchmarkReturns.subList(benchmarkReturns.size() - minLength, benchmarkReturns.size());
+                    
+                    // Calculate beta = Cov(portfolio, benchmark) / Var(benchmark)
+                    BigDecimal covariance = calculateCovariance(alignedPortfolioReturns, alignedBenchmarkReturns);
+                    BigDecimal benchmarkVariance = calculateVariance(alignedBenchmarkReturns);
+                    
+                    if (benchmarkVariance.compareTo(BigDecimal.ZERO) > 0) {
+                        BigDecimal beta = covariance.divide(benchmarkVariance, 6, RoundingMode.HALF_UP);
+                        portfolio.setBeta(beta);
+                        
+                        logger.info("Calculated portfolio beta: {} vs {}", beta, benchmarkSymbol);
+                    }
+                }
+            }
+            
+        } catch (Exception e) {
+            logger.error("Failed to calculate portfolio beta", e);
+        }
+    }
+    
+    private BigDecimal calculateCovariance(List<BigDecimal> returns1, List<BigDecimal> returns2) {
+        if (returns1.size() != returns2.size() || returns1.isEmpty()) {
+            return BigDecimal.ZERO;
+        }
+        
+        BigDecimal mean1 = returns1.stream().reduce(BigDecimal.ZERO, BigDecimal::add)
+                .divide(BigDecimal.valueOf(returns1.size()), 6, RoundingMode.HALF_UP);
+        BigDecimal mean2 = returns2.stream().reduce(BigDecimal.ZERO, BigDecimal::add)
+                .divide(BigDecimal.valueOf(returns2.size()), 6, RoundingMode.HALF_UP);
+        
+        BigDecimal covariance = BigDecimal.ZERO;
+        for (int i = 0; i < returns1.size(); i++) {
+            BigDecimal diff1 = returns1.get(i).subtract(mean1);
+            BigDecimal diff2 = returns2.get(i).subtract(mean2);
+            covariance = covariance.add(diff1.multiply(diff2));
+        }
+        
+        return covariance.divide(BigDecimal.valueOf(returns1.size() - 1), 6, RoundingMode.HALF_UP);
+    }
+    
+    private BigDecimal calculateVariance(List<BigDecimal> returns) {
+        if (returns.isEmpty()) {
+            return BigDecimal.ZERO;
+        }
+        
+        BigDecimal mean = returns.stream().reduce(BigDecimal.ZERO, BigDecimal::add)
+                .divide(BigDecimal.valueOf(returns.size()), 6, RoundingMode.HALF_UP);
+        
+        BigDecimal variance = returns.stream()
+                .map(r -> r.subtract(mean).pow(2))
+                .reduce(BigDecimal.ZERO, BigDecimal::add)
+                .divide(BigDecimal.valueOf(returns.size() - 1), 6, RoundingMode.HALF_UP);
+        
+        return variance;
     }
     
     private void calculateMaxDrawdown(Portfolio portfolio, List<PortfolioHistory> history) {
@@ -315,15 +500,23 @@ public class PortfolioService {
         
         BigDecimal peak = BigDecimal.ZERO;
         BigDecimal maxDrawdown = BigDecimal.ZERO;
+        int maxDrawdownDuration = 0;
+        int currentDrawdownDuration = 0;
         
         for (PortfolioHistory point : history) {
             if (point.getNav().compareTo(peak) > 0) {
                 peak = point.getNav();
+                currentDrawdownDuration = 0;
+            } else {
+                currentDrawdownDuration++;
             }
             
-            BigDecimal drawdown = peak.subtract(point.getNav()).divide(peak, 6, RoundingMode.HALF_UP);
-            if (drawdown.compareTo(maxDrawdown) > 0) {
-                maxDrawdown = drawdown;
+            if (peak.compareTo(BigDecimal.ZERO) > 0) {
+                BigDecimal drawdown = peak.subtract(point.getNav()).divide(peak, 6, RoundingMode.HALF_UP);
+                if (drawdown.compareTo(maxDrawdown) > 0) {
+                    maxDrawdown = drawdown;
+                    maxDrawdownDuration = currentDrawdownDuration;
+                }
             }
         }
         

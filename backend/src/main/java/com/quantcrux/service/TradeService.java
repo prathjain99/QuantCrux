@@ -228,32 +228,84 @@ public class TradeService {
         try {
             logger.info("Executing order {}", order.getId());
             
-            // Get current market data
+            // Get real-time market data for execution
             MarketDataResponse marketData = marketDataService.getLivePrice(order.getSymbol());
-            BigDecimal executionPrice = order.getSide() == OrderSide.BUY ? 
-                marketData.getAskPrice() : marketData.getBidPrice();
             
-            if (executionPrice == null) {
-                executionPrice = marketData.getPrice();
+            BigDecimal executionPrice;
+            
+            // Determine execution price based on order type
+            switch (order.getOrderType()) {
+                case MARKET:
+                    executionPrice = order.getSide() == OrderSide.BUY ? 
+                        marketData.getAskPrice() : marketData.getBidPrice();
+                    if (executionPrice == null) {
+                        executionPrice = marketData.getPrice();
+                    }
+                    break;
+                    
+                case LIMIT:
+                    // For limit orders, check if limit price can be filled
+                    BigDecimal marketPrice = order.getSide() == OrderSide.BUY ? 
+                        marketData.getAskPrice() : marketData.getBidPrice();
+                    if (marketPrice == null) {
+                        marketPrice = marketData.getPrice();
+                    }
+                    
+                    boolean canFill = order.getSide() == OrderSide.BUY ? 
+                        order.getLimitPrice().compareTo(marketPrice) >= 0 :
+                        order.getLimitPrice().compareTo(marketPrice) <= 0;
+                    
+                    if (!canFill) {
+                        // Order remains pending
+                        order.setStatus(OrderStatus.SUBMITTED);
+                        orderRepository.save(order);
+                        return;
+                    }
+                    
+                    executionPrice = order.getLimitPrice();
+                    break;
+                    
+                case STOP:
+                    // Stop orders convert to market orders when triggered
+                    boolean triggered = order.getSide() == OrderSide.BUY ?
+                        marketData.getPrice().compareTo(order.getStopPrice()) >= 0 :
+                        marketData.getPrice().compareTo(order.getStopPrice()) <= 0;
+                    
+                    if (!triggered) {
+                        order.setStatus(OrderStatus.SUBMITTED);
+                        orderRepository.save(order);
+                        return;
+                    }
+                    
+                    executionPrice = order.getSide() == OrderSide.BUY ? 
+                        marketData.getAskPrice() : marketData.getBidPrice();
+                    if (executionPrice == null) {
+                        executionPrice = marketData.getPrice();
+                    }
+                    break;
+                    
+                default:
+                    throw new RuntimeException("Unsupported order type: " + order.getOrderType());
             }
             
             if (executionPrice == null) {
                 throw new RuntimeException("No execution price available for symbol: " + order.getSymbol());
             }
             
-            // Add realistic slippage (0.1% average)
-            Random random = new Random();
-            BigDecimal slippage = BigDecimal.valueOf((random.nextGaussian() * 0.001)); // 0.1% average slippage
-            executionPrice = executionPrice.multiply(BigDecimal.ONE.add(slippage));
+            // Apply realistic slippage based on market conditions
+            BigDecimal slippage = calculateSlippage(order, marketData);
+            BigDecimal slippageAdjustedPrice = order.getSide() == OrderSide.BUY ?
+                executionPrice.add(executionPrice.multiply(slippage)) :
+                executionPrice.subtract(executionPrice.multiply(slippage));
             
             // Calculate fees
-            BigDecimal totalAmount = order.getQuantity().multiply(executionPrice);
-            BigDecimal fees = totalAmount.multiply(BigDecimal.valueOf(0.001)); // 0.1% commission
+            BigDecimal totalAmount = order.getQuantity().multiply(slippageAdjustedPrice);
+            BigDecimal fees = calculateFees(order, totalAmount);
             
             // Update order
             order.setStatus(OrderStatus.FILLED);
             order.setFilledQuantity(order.getQuantity());
-            order.setAvgFillPrice(executionPrice);
+            order.setAvgFillPrice(slippageAdjustedPrice);
             order.setTotalFees(fees);
             order.setExecutedAt(LocalDateTime.now());
             
@@ -269,10 +321,10 @@ public class TradeService {
             trade.setSymbol(order.getSymbol());
             trade.setSide(order.getSide());
             trade.setQuantity(order.getQuantity());
-            trade.setPrice(executionPrice);
+            trade.setPrice(slippageAdjustedPrice);
             trade.setTotalAmount(totalAmount);
             trade.setFees(fees);
-            trade.setExpectedPrice(marketData.getPrice());
+            trade.setExpectedPrice(executionPrice); // Price before slippage
             trade.setSlippage(slippage);
             trade.setStatus(TradeStatus.EXECUTED);
             trade.setExecutedAt(LocalDateTime.now());
@@ -285,7 +337,8 @@ public class TradeService {
             // Update portfolio cash balance
             updatePortfolioCash(order.getPortfolio(), trade);
             
-            logger.info("Order {} executed successfully at price {}", order.getId(), executionPrice);
+            logger.info("Order {} executed successfully at price {} (slippage: {})", 
+                       order.getId(), slippageAdjustedPrice, slippage);
             
         } catch (Exception e) {
             logger.error("Failed to execute order {}", order.getId(), e);
@@ -293,6 +346,66 @@ public class TradeService {
             order.setNotes("Execution failed: " + e.getMessage());
             orderRepository.save(order);
         }
+    }
+    
+    private BigDecimal calculateSlippage(Order order, MarketDataResponse marketData) {
+        // Base slippage depends on asset type and market conditions
+        BigDecimal baseSlippage;
+        
+        String symbol = order.getSymbol().toUpperCase();
+        if (symbol.contains("BTC") || symbol.contains("ETH") || symbol.contains("USD")) {
+            baseSlippage = BigDecimal.valueOf(0.002); // 0.2% for crypto
+        } else if (Arrays.asList("AAPL", "MSFT", "GOOGL", "TSLA", "SPY", "QQQ").contains(symbol)) {
+            baseSlippage = BigDecimal.valueOf(0.0005); // 0.05% for liquid stocks
+        } else {
+            baseSlippage = BigDecimal.valueOf(0.001); // 0.1% for regular stocks
+        }
+        
+        // Adjust for order size (larger orders have more slippage)
+        BigDecimal orderValue = order.getQuantity().multiply(marketData.getPrice());
+        if (orderValue.compareTo(BigDecimal.valueOf(100000)) > 0) {
+            baseSlippage = baseSlippage.multiply(BigDecimal.valueOf(1.5)); // 50% more slippage for large orders
+        }
+        
+        // Adjust for market volatility
+        if (marketData.getDayChangePercent() != null) {
+            BigDecimal volatilityAdjustment = marketData.getDayChangePercent().abs().multiply(BigDecimal.valueOf(0.1));
+            baseSlippage = baseSlippage.add(volatilityAdjustment);
+        }
+        
+        // Add random component
+        Random random = new Random();
+        BigDecimal randomComponent = BigDecimal.valueOf(random.nextGaussian() * 0.0002); // ±0.02% random
+        
+        return baseSlippage.add(randomComponent).abs();
+    }
+    
+    private BigDecimal calculateFees(Order order, BigDecimal totalAmount) {
+        // Fee structure based on asset type and order size
+        BigDecimal feeRate;
+        
+        String symbol = order.getSymbol().toUpperCase();
+        if (symbol.contains("BTC") || symbol.contains("ETH") || symbol.contains("USD")) {
+            feeRate = BigDecimal.valueOf(0.0025); // 0.25% for crypto
+        } else if (Arrays.asList("SPY", "QQQ", "VTI").contains(symbol)) {
+            feeRate = BigDecimal.valueOf(0.0001); // 0.01% for ETFs
+        } else {
+            feeRate = BigDecimal.valueOf(0.0005); // 0.05% for stocks
+        }
+        
+        // Volume discounts for large orders
+        if (totalAmount.compareTo(BigDecimal.valueOf(100000)) > 0) {
+            feeRate = feeRate.multiply(BigDecimal.valueOf(0.8)); // 20% discount
+        }
+        if (totalAmount.compareTo(BigDecimal.valueOf(1000000)) > 0) {
+            feeRate = feeRate.multiply(BigDecimal.valueOf(0.7)); // Additional 30% discount
+        }
+        
+        // Minimum fee
+        BigDecimal calculatedFee = totalAmount.multiply(feeRate);
+        BigDecimal minimumFee = BigDecimal.valueOf(1.0); // $1 minimum
+        
+        return calculatedFee.max(minimumFee);
     }
     
     private void updatePosition(Trade trade) {
@@ -309,32 +422,64 @@ public class TradeService {
             position.setInstrumentType(trade.getInstrumentType());
             position.setSymbol(trade.getSymbol());
             position.setFirstTradeDate(trade.getTradeDate());
+            position.setNetQuantity(BigDecimal.ZERO);
+            position.setCostBasis(BigDecimal.ZERO);
+            position.setRealizedPnl(BigDecimal.ZERO);
         }
         
-        // Update position based on trade
+        // Calculate new position after trade
         BigDecimal tradeQuantity = trade.getSide() == OrderSide.BUY ? trade.getQuantity() : trade.getQuantity().negate();
+        BigDecimal oldQuantity = position.getNetQuantity();
         BigDecimal newQuantity = position.getNetQuantity().add(tradeQuantity);
         
+        // Handle position updates based on trade direction
         if (newQuantity.compareTo(BigDecimal.ZERO) == 0) {
-            // Position closed
-            position.setRealizedPnl(position.getRealizedPnl().add(position.getUnrealizedPnl()));
+            // Position completely closed - realize P&L
+            if (position.getUnrealizedPnl() != null) {
+                position.setRealizedPnl(position.getRealizedPnl().add(position.getUnrealizedPnl()));
+            }
             position.setNetQuantity(BigDecimal.ZERO);
             position.setAvgPrice(BigDecimal.ZERO);
             position.setCostBasis(BigDecimal.ZERO);
             position.setMarketValue(BigDecimal.ZERO);
             position.setUnrealizedPnl(BigDecimal.ZERO);
+            
+        } else if (oldQuantity.signum() != newQuantity.signum() && oldQuantity.compareTo(BigDecimal.ZERO) != 0) {
+            // Position flipped direction - realize P&L on closed portion
+            BigDecimal closedQuantity = oldQuantity.abs();
+            BigDecimal realizedPnl = closedQuantity.multiply(trade.getPrice().subtract(position.getAvgPrice()));
+            position.setRealizedPnl(position.getRealizedPnl().add(realizedPnl));
+            
+            // Reset position with remaining quantity
+            position.setNetQuantity(newQuantity);
+            position.setAvgPrice(trade.getPrice());
+            position.setCostBasis(newQuantity.abs().multiply(trade.getPrice()));
+            
+        } else if (oldQuantity.signum() == tradeQuantity.signum() || oldQuantity.compareTo(BigDecimal.ZERO) == 0) {
+            // Adding to existing position or opening new position
+            BigDecimal oldCostBasis = position.getCostBasis() != null ? position.getCostBasis() : BigDecimal.ZERO;
+            BigDecimal tradeCostBasis = trade.getQuantity().multiply(trade.getPrice());
+            BigDecimal newCostBasis = oldCostBasis.add(tradeCostBasis);
+            
+            BigDecimal newAvgPrice = newCostBasis.divide(newQuantity.abs(), 6, RoundingMode.HALF_UP);
+            
+            position.setNetQuantity(newQuantity);
+            position.setAvgPrice(newAvgPrice);
+            position.setCostBasis(newCostBasis);
+            
         } else {
-            // Update average price for same-side trades
-            if (position.getNetQuantity().signum() == tradeQuantity.signum() || position.getNetQuantity().compareTo(BigDecimal.ZERO) == 0) {
-                BigDecimal totalCost = position.getCostBasis().add(trade.getTotalAmount());
-                BigDecimal totalQuantity = position.getNetQuantity().abs().add(trade.getQuantity());
-                BigDecimal newAvgPrice = totalCost.divide(totalQuantity, 6, RoundingMode.HALF_UP);
-                
-                position.setAvgPrice(newAvgPrice);
-                position.setCostBasis(totalQuantity.multiply(newAvgPrice));
+            // Reducing existing position - realize P&L on sold portion
+            BigDecimal soldQuantity = trade.getQuantity();
+            BigDecimal realizedPnl = soldQuantity.multiply(trade.getPrice().subtract(position.getAvgPrice()));
+            
+            if (trade.getSide() == OrderSide.SELL) {
+                position.setRealizedPnl(position.getRealizedPnl().add(realizedPnl));
+            } else {
+                position.setRealizedPnl(position.getRealizedPnl().subtract(realizedPnl));
             }
             
             position.setNetQuantity(newQuantity);
+            // Keep same average price for partial closes
         }
         
         position.setLastTradeDate(trade.getTradeDate());

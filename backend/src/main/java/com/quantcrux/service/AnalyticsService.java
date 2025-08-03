@@ -188,28 +188,29 @@ public class AnalyticsService {
             portfolio, request.getPeriodStart(), request.getPeriodEnd());
         
         if (history.size() < 2) {
-            // Not enough data for risk calculations
+            // Calculate risk metrics from current holdings if no history
+            calculateRiskFromHoldings(portfolio, response);
             return;
         }
         
-        // Calculate daily returns
+        // Calculate daily returns from NAV history
         List<BigDecimal> returns = new ArrayList<>();
         for (int i = 1; i < history.size(); i++) {
             PortfolioHistory prev = history.get(i - 1);
             PortfolioHistory curr = history.get(i);
             
             if (prev.getNav().compareTo(BigDecimal.ZERO) > 0) {
-                BigDecimal dailyReturn = curr.getNav().subtract(prev.getNav())
-                        .divide(prev.getNav(), 6, RoundingMode.HALF_UP);
+                BigDecimal dailyReturn = BigDecimal.valueOf(Math.log(curr.getNav().divide(prev.getNav(), 10, RoundingMode.HALF_UP).doubleValue()));
                 returns.add(dailyReturn);
             }
         }
         
         if (returns.isEmpty()) {
+            calculateRiskFromHoldings(portfolio, response);
             return;
         }
         
-        // Calculate volatility
+        // Calculate portfolio volatility (annualized)
         BigDecimal avgReturn = returns.stream()
                 .reduce(BigDecimal.ZERO, BigDecimal::add)
                 .divide(BigDecimal.valueOf(returns.size()), 6, RoundingMode.HALF_UP);
@@ -217,34 +218,56 @@ public class AnalyticsService {
         BigDecimal variance = returns.stream()
                 .map(r -> r.subtract(avgReturn).pow(2))
                 .reduce(BigDecimal.ZERO, BigDecimal::add)
-                .divide(BigDecimal.valueOf(returns.size()), 6, RoundingMode.HALF_UP);
+                .divide(BigDecimal.valueOf(returns.size() - 1), 6, RoundingMode.HALF_UP); // Sample variance
         
         BigDecimal volatility = BigDecimal.valueOf(Math.sqrt(variance.doubleValue()) * Math.sqrt(252)); // Annualized
         response.setVolatility(volatility);
         
-        // Calculate VaR (95% and 99%)
+        // Calculate Value at Risk using historical simulation
         List<BigDecimal> sortedReturns = returns.stream().sorted().collect(Collectors.toList());
         int var95Index = (int) (sortedReturns.size() * 0.05);
         int var99Index = (int) (sortedReturns.size() * 0.01);
         
         if (var95Index < sortedReturns.size()) {
             BigDecimal var95Return = sortedReturns.get(var95Index);
-            BigDecimal var95 = portfolio.getCurrentNav().multiply(var95Return.abs());
+            // Convert log return back to simple return for VaR calculation
+            BigDecimal simpleReturn = BigDecimal.valueOf(Math.exp(var95Return.doubleValue()) - 1);
+            BigDecimal var95 = portfolio.getCurrentNav().multiply(simpleReturn.abs());
             response.setVar95(var95);
         }
         
         if (var99Index < sortedReturns.size()) {
             BigDecimal var99Return = sortedReturns.get(var99Index);
-            BigDecimal var99 = portfolio.getCurrentNav().multiply(var99Return.abs());
+            BigDecimal simpleReturn = BigDecimal.valueOf(Math.exp(var99Return.doubleValue()) - 1);
+            BigDecimal var99 = portfolio.getCurrentNav().multiply(simpleReturn.abs());
             response.setVar99(var99);
         }
         
-        // Calculate Sharpe ratio (assuming 5% risk-free rate)
-        BigDecimal riskFreeRate = BigDecimal.valueOf(0.05).divide(BigDecimal.valueOf(252), 6, RoundingMode.HALF_UP);
+        // Calculate Sharpe ratio (annualized)
+        BigDecimal annualizedReturn = avgReturn.multiply(BigDecimal.valueOf(252));
+        BigDecimal riskFreeRate = BigDecimal.valueOf(0.05); // 5% annual risk-free rate
+        
         if (volatility.compareTo(BigDecimal.ZERO) > 0) {
-            BigDecimal dailyVolatility = volatility.divide(BigDecimal.valueOf(Math.sqrt(252)), 6, RoundingMode.HALF_UP);
-            BigDecimal sharpeRatio = avgReturn.subtract(riskFreeRate).divide(dailyVolatility, 6, RoundingMode.HALF_UP);
+            BigDecimal sharpeRatio = annualizedReturn.subtract(riskFreeRate).divide(volatility, 6, RoundingMode.HALF_UP);
             response.setSharpeRatio(sharpeRatio);
+        }
+        
+        // Calculate Sortino ratio (using downside deviation)
+        List<BigDecimal> negativeReturns = returns.stream()
+                .filter(r -> r.compareTo(BigDecimal.ZERO) < 0)
+                .collect(Collectors.toList());
+        
+        if (!negativeReturns.isEmpty()) {
+            BigDecimal downsideVariance = negativeReturns.stream()
+                    .map(r -> r.pow(2))
+                    .reduce(BigDecimal.ZERO, BigDecimal::add)
+                    .divide(BigDecimal.valueOf(negativeReturns.size()), 6, RoundingMode.HALF_UP);
+            
+            BigDecimal downsideDeviation = BigDecimal.valueOf(Math.sqrt(downsideVariance.doubleValue() * 252));
+            if (downsideDeviation.compareTo(BigDecimal.ZERO) > 0) {
+                BigDecimal sortinoRatio = annualizedReturn.subtract(riskFreeRate).divide(downsideDeviation, 6, RoundingMode.HALF_UP);
+                response.setSortinoRatio(sortinoRatio);
+            }
         }
         
         // Calculate max drawdown
@@ -254,17 +277,135 @@ public class AnalyticsService {
         calculateBenchmarkMetrics(portfolio, response, request, returns);
     }
     
+    private void calculateRiskFromHoldings(Portfolio portfolio, AnalyticsResponse response) {
+        try {
+            List<PortfolioHolding> holdings = holdingRepository.findByPortfolio(portfolio);
+            
+            if (holdings.isEmpty()) {
+                return;
+            }
+            
+            // Calculate weighted portfolio volatility
+            BigDecimal portfolioVariance = BigDecimal.ZERO;
+            BigDecimal totalWeight = BigDecimal.ZERO;
+            Map<String, BigDecimal> assetVolatilities = new HashMap<>();
+            Map<String, BigDecimal> assetWeights = new HashMap<>();
+            
+            // Get individual asset volatilities and weights
+            for (PortfolioHolding holding : holdings) {
+                if (holding.getWeightPct() != null && holding.getWeightPct().compareTo(BigDecimal.ZERO) > 0) {
+                    BigDecimal weight = holding.getWeightPct().divide(BigDecimal.valueOf(100), 6, RoundingMode.HALF_UP);
+                    BigDecimal assetVol = calculateAssetVolatility(holding.getSymbol());
+                    
+                    assetVolatilities.put(holding.getSymbol(), assetVol);
+                    assetWeights.put(holding.getSymbol(), weight);
+                    totalWeight = totalWeight.add(weight);
+                }
+            }
+            
+            // Calculate portfolio variance (simplified - assumes zero correlation)
+            for (Map.Entry<String, BigDecimal> entry : assetWeights.entrySet()) {
+                String symbol = entry.getKey();
+                BigDecimal weight = entry.getValue();
+                BigDecimal assetVol = assetVolatilities.get(symbol);
+                
+                if (assetVol != null) {
+                    BigDecimal contribution = weight.pow(2).multiply(assetVol.pow(2));
+                    portfolioVariance = portfolioVariance.add(contribution);
+                }
+            }
+            
+            BigDecimal portfolioVolatility = BigDecimal.valueOf(Math.sqrt(portfolioVariance.doubleValue()));
+            response.setVolatility(portfolioVolatility);
+            
+            // Estimate VaR based on normal distribution assumption
+            BigDecimal var95 = portfolio.getCurrentNav()
+                    .multiply(portfolioVolatility)
+                    .multiply(BigDecimal.valueOf(1.645)) // 95% confidence z-score
+                    .divide(BigDecimal.valueOf(Math.sqrt(252)), 6, RoundingMode.HALF_UP); // Daily VaR
+            response.setVar95(var95);
+            
+            // Estimate Sharpe ratio
+            BigDecimal expectedReturn = BigDecimal.valueOf(0.08); // Assume 8% expected return
+            BigDecimal riskFreeRate = BigDecimal.valueOf(0.05);
+            if (portfolioVolatility.compareTo(BigDecimal.ZERO) > 0) {
+                BigDecimal sharpeRatio = expectedReturn.subtract(riskFreeRate).divide(portfolioVolatility, 6, RoundingMode.HALF_UP);
+                response.setSharpeRatio(sharpeRatio);
+            }
+            
+        } catch (Exception e) {
+            logger.error("Failed to calculate risk from holdings", e);
+        }
+    }
+    
+    private BigDecimal calculateAssetVolatility(String symbol) {
+        try {
+            // Get 30 days of historical data
+            LocalDateTime endTime = LocalDateTime.now();
+            LocalDateTime startTime = endTime.minusDays(30);
+            
+            MarketDataResponse historicalData = marketDataService.getOHLCVData(symbol, "1d", startTime, endTime);
+            
+            if (historicalData.getOhlcvData() != null && historicalData.getOhlcvData().size() > 1) {
+                List<BigDecimal> logReturns = new ArrayList<>();
+                List<MarketDataResponse.OHLCVData> ohlcvData = historicalData.getOhlcvData();
+                
+                for (int i = 1; i < ohlcvData.size(); i++) {
+                    BigDecimal prevClose = ohlcvData.get(i - 1).getClose();
+                    BigDecimal currentClose = ohlcvData.get(i).getClose();
+                    
+                    if (prevClose.compareTo(BigDecimal.ZERO) > 0) {
+                        BigDecimal logReturn = BigDecimal.valueOf(Math.log(currentClose.divide(prevClose, 10, RoundingMode.HALF_UP).doubleValue()));
+                        logReturns.add(logReturn);
+                    }
+                }
+                
+                if (logReturns.size() > 1) {
+                    BigDecimal mean = logReturns.stream()
+                            .reduce(BigDecimal.ZERO, BigDecimal::add)
+                            .divide(BigDecimal.valueOf(logReturns.size()), 10, RoundingMode.HALF_UP);
+                    
+                    BigDecimal variance = logReturns.stream()
+                            .map(r -> r.subtract(mean).pow(2))
+                            .reduce(BigDecimal.ZERO, BigDecimal::add)
+                            .divide(BigDecimal.valueOf(logReturns.size() - 1), 10, RoundingMode.HALF_UP);
+                    
+                    // Annualized volatility
+                    return BigDecimal.valueOf(Math.sqrt(variance.doubleValue() * 252));
+                }
+            }
+            
+        } catch (Exception e) {
+            logger.error("Failed to calculate asset volatility for {}", symbol, e);
+        }
+        
+        // Fallback to default volatilities
+        return getDefaultAssetVolatility(symbol);
+    }
+    
+    private BigDecimal getDefaultAssetVolatility(String symbol) {
+        switch (symbol.toUpperCase()) {
+            case "BTCUSD":
+            case "ETHUSD":
+                return BigDecimal.valueOf(0.60); // 60% for crypto
+            case "TSLA":
+                return BigDecimal.valueOf(0.40); // 40% for volatile stocks
+            case "SPY":
+            case "QQQ":
+                return BigDecimal.valueOf(0.15); // 15% for ETFs
+            default:
+                return BigDecimal.valueOf(0.25); // 25% for regular stocks
+        }
+    }
+    
     private void calculatePortfolioPerformanceMetrics(Portfolio portfolio, AnalyticsResponse response, AnalyticsRequest request) {
-        // Get trade data for the period
+        // Get actual trade data for the period
         List<Trade> trades = tradeRepository.findByPortfolioAndTradeDateAfter(portfolio, request.getPeriodStart());
         
-        // Calculate trade metrics
+        // Calculate real trade statistics
         long winningTrades = trades.stream()
                 .filter(t -> t.getStatus() == TradeStatus.EXECUTED)
-                .filter(t -> {
-                    // Simplified P&L calculation for demo
-                    return random.nextBoolean(); // 50% win rate for demo
-                })
+                .filter(t -> isWinningTrade(t))
                 .count();
         
         response.setTotalTrades(trades.size());
@@ -274,9 +415,50 @@ public class AnalyticsService {
         if (trades.size() > 0) {
             BigDecimal winRate = BigDecimal.valueOf(winningTrades).divide(BigDecimal.valueOf(trades.size()), 6, RoundingMode.HALF_UP);
             response.setWinRate(winRate);
+            
+            // Calculate average win and loss
+            List<Trade> winningTradesList = trades.stream()
+                    .filter(t -> t.getStatus() == TradeStatus.EXECUTED && isWinningTrade(t))
+                    .collect(Collectors.toList());
+            
+            List<Trade> losingTradesList = trades.stream()
+                    .filter(t -> t.getStatus() == TradeStatus.EXECUTED && !isWinningTrade(t))
+                    .collect(Collectors.toList());
+            
+            if (!winningTradesList.isEmpty()) {
+                BigDecimal avgWin = winningTradesList.stream()
+                        .map(this::calculateTradePnL)
+                        .reduce(BigDecimal.ZERO, BigDecimal::add)
+                        .divide(BigDecimal.valueOf(winningTradesList.size()), 2, RoundingMode.HALF_UP);
+                response.setAvgWin(avgWin);
+            }
+            
+            if (!losingTradesList.isEmpty()) {
+                BigDecimal avgLoss = losingTradesList.stream()
+                        .map(this::calculateTradePnL)
+                        .map(BigDecimal::abs)
+                        .reduce(BigDecimal.ZERO, BigDecimal::add)
+                        .divide(BigDecimal.valueOf(losingTradesList.size()), 2, RoundingMode.HALF_UP);
+                response.setAvgLoss(avgLoss);
+            }
+            
+            // Calculate profit factor
+            BigDecimal totalWins = winningTradesList.stream()
+                    .map(this::calculateTradePnL)
+                    .reduce(BigDecimal.ZERO, BigDecimal::add);
+            
+            BigDecimal totalLosses = losingTradesList.stream()
+                    .map(this::calculateTradePnL)
+                    .map(BigDecimal::abs)
+                    .reduce(BigDecimal.ZERO, BigDecimal::add);
+            
+            if (totalLosses.compareTo(BigDecimal.ZERO) > 0) {
+                BigDecimal profitFactor = totalWins.divide(totalLosses, 6, RoundingMode.HALF_UP);
+                response.setProfitFactor(profitFactor);
+            }
         }
         
-        // Calculate returns
+        // Calculate portfolio returns
         if (portfolio.getInitialCapital().compareTo(BigDecimal.ZERO) > 0) {
             BigDecimal totalReturn = portfolio.getCurrentNav().subtract(portfolio.getInitialCapital())
                     .divide(portfolio.getInitialCapital(), 6, RoundingMode.HALF_UP);
@@ -297,6 +479,67 @@ public class AnalyticsService {
             BigDecimal tradeFrequency = BigDecimal.valueOf(trades.size() * 30.0 / daysBetween); // Trades per month
             response.setTradeFrequency(tradeFrequency);
         }
+        
+        // Calculate turnover ratio
+        if (trades.size() > 0) {
+            BigDecimal totalTradeValue = trades.stream()
+                    .map(Trade::getTotalAmount)
+                    .reduce(BigDecimal.ZERO, BigDecimal::add);
+            
+            if (portfolio.getCurrentNav().compareTo(BigDecimal.ZERO) > 0) {
+                BigDecimal turnoverRatio = totalTradeValue.divide(portfolio.getCurrentNav(), 6, RoundingMode.HALF_UP);
+                response.setTurnoverRatio(turnoverRatio);
+            }
+        }
+    }
+    
+    private boolean isWinningTrade(Trade trade) {
+        // Calculate if trade was profitable
+        BigDecimal tradePnL = calculateTradePnL(trade);
+        return tradePnL.compareTo(BigDecimal.ZERO) > 0;
+    }
+    
+    private BigDecimal calculateTradePnL(Trade trade) {
+        // For buy trades, P&L = (current_price - trade_price) * quantity - fees
+        // For sell trades, P&L = (trade_price - avg_cost) * quantity - fees
+        
+        try {
+            // Get current market price
+            MarketDataResponse currentData = marketDataService.getLivePrice(trade.getSymbol());
+            BigDecimal currentPrice = currentData.getPrice();
+            
+            if (currentPrice == null) {
+                return BigDecimal.ZERO;
+            }
+            
+            BigDecimal pnl;
+            if (trade.getSide() == OrderSide.BUY) {
+                pnl = currentPrice.subtract(trade.getPrice()).multiply(trade.getQuantity());
+            } else {
+                // For sell trades, assume we're closing a position at average cost
+                // This is simplified - in reality we'd track the specific position being closed
+                pnl = trade.getPrice().subtract(getAverageCostBasis(trade)).multiply(trade.getQuantity());
+            }
+            
+            return pnl.subtract(trade.getFees());
+            
+        } catch (Exception e) {
+            logger.error("Failed to calculate trade P&L for trade {}", trade.getId(), e);
+            return BigDecimal.ZERO;
+        }
+    }
+    
+    private BigDecimal getAverageCostBasis(Trade trade) {
+        // Get the position to find average cost basis
+        Optional<Position> position = positionRepository.findByPortfolioAndSymbolAndInstrumentType(
+                trade.getPortfolio(), trade.getSymbol(), trade.getInstrumentType());
+        
+        if (position.isPresent() && position.get().getAvgPrice() != null) {
+            return position.get().getAvgPrice();
+        }
+        
+        // Fallback to trade price
+        return trade.getPrice();
     }
     
     private void calculateStrategyRiskMetrics(Strategy strategy, AnalyticsResponse response, AnalyticsRequest request) {
@@ -319,6 +562,8 @@ public class AnalyticsService {
         BigDecimal maxDrawdown = BigDecimal.ZERO;
         int maxDrawdownDuration = 0;
         int currentDrawdownDuration = 0;
+        int maxDrawdownDuration = 0;
+        int currentDrawdownDuration = 0;
         
         for (PortfolioHistory point : history) {
             if (point.getNav().compareTo(peak) > 0) {
@@ -326,16 +571,29 @@ public class AnalyticsService {
                 currentDrawdownDuration = 0;
             } else {
                 currentDrawdownDuration++;
+                currentDrawdownDuration = 0;
+            } else {
+                currentDrawdownDuration++;
             }
             
-            BigDecimal drawdown = peak.subtract(point.getNav()).divide(peak, 6, RoundingMode.HALF_UP);
-            if (drawdown.compareTo(maxDrawdown) > 0) {
-                maxDrawdown = drawdown;
+            if (peak.compareTo(BigDecimal.ZERO) > 0) {
+                BigDecimal drawdown = peak.subtract(point.getNav()).divide(peak, 6, RoundingMode.HALF_UP);
+                if (drawdown.compareTo(maxDrawdown) > 0) {
+                    maxDrawdown = drawdown;
+                    maxDrawdownDuration = currentDrawdownDuration;
+                }
                 maxDrawdownDuration = currentDrawdownDuration;
             }
         }
         
         response.setMaxDrawdown(maxDrawdown);
+        response.setMaxDrawdownDuration(maxDrawdownDuration);
+        
+        // Calculate Calmar ratio (CAGR / Max Drawdown)
+        if (maxDrawdown.compareTo(BigDecimal.ZERO) > 0 && response.getCagr() != null) {
+            BigDecimal calmarRatio = response.getCagr().divide(maxDrawdown, 6, RoundingMode.HALF_UP);
+            response.setCalmarRatio(calmarRatio);
+        }
         response.setMaxDrawdownDuration(maxDrawdownDuration);
     }
     

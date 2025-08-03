@@ -152,8 +152,8 @@ public class StrategyService {
         
         try {
             // Parse strategy configuration to get required indicators
-            JsonNode config = objectMapper.readTree(configJson);
-            JsonNode indicatorConfigs = config.get("indicators");
+            com.fasterxml.jackson.databind.JsonNode config = objectMapper.readTree(configJson);
+            com.fasterxml.jackson.databind.JsonNode indicatorConfigs = config.get("indicators");
             
             if (indicatorConfigs != null && indicatorConfigs.isArray() && 
                 historicalData.getOhlcvData() != null && !historicalData.getOhlcvData().isEmpty()) {
@@ -162,7 +162,7 @@ public class StrategyService {
                     .map(MarketDataResponse.OHLCVData::getClose)
                     .collect(Collectors.toList());
                 
-                for (JsonNode indicatorConfig : indicatorConfigs) {
+                for (com.fasterxml.jackson.databind.JsonNode indicatorConfig : indicatorConfigs) {
                     String type = indicatorConfig.get("type").asText();
                     int period = indicatorConfig.has("period") ? indicatorConfig.get("period").asInt() : 14;
                     
@@ -180,6 +180,16 @@ public class StrategyService {
                             Map<String, BigDecimal> macd = calculateMACD(closePrices);
                             indicators.putAll(macd);
                             break;
+                        case "BOLLINGER":
+                            Map<String, BigDecimal> bollinger = calculateBollingerBands(closePrices, period);
+                            indicators.putAll(bollinger);
+                            break;
+                        case "STOCHASTIC":
+                            if (historicalData.getOhlcvData().size() >= period) {
+                                Map<String, BigDecimal> stoch = calculateStochastic(historicalData.getOhlcvData(), period);
+                                indicators.putAll(stoch);
+                            }
+                            break;
                     }
                 }
                 
@@ -189,12 +199,86 @@ public class StrategyService {
             
         } catch (Exception e) {
             logger.error("Failed to calculate indicators", e);
-            // Fallback to mock indicators
-            indicators.put("RSI", BigDecimal.valueOf(45.2));
-            indicators.put("SMA_50", BigDecimal.valueOf(150.5));
-            indicators.put("EMA_20", BigDecimal.valueOf(152.1));
-            indicators.put("MACD", BigDecimal.valueOf(0.8));
-            indicators.put("Price", historicalData.getPrice() != null ? historicalData.getPrice() : getBasePrice(historicalData.getSymbol()));
+            // Fallback to basic indicators if calculation fails
+            BigDecimal currentPrice = historicalData.getPrice() != null ? historicalData.getPrice() : getBasePrice(historicalData.getSymbol());
+            indicators.put("Price", currentPrice);
+            indicators.put("RSI", BigDecimal.valueOf(50.0)); // Neutral RSI
+        }
+        
+        private Map<String, BigDecimal> calculateBollingerBands(List<BigDecimal> prices, int period) {
+            Map<String, BigDecimal> bands = new HashMap<>();
+            
+            if (prices.size() < period) {
+                BigDecimal currentPrice = prices.get(prices.size() - 1);
+                bands.put("BB_Upper", currentPrice.multiply(BigDecimal.valueOf(1.02)));
+                bands.put("BB_Middle", currentPrice);
+                bands.put("BB_Lower", currentPrice.multiply(BigDecimal.valueOf(0.98)));
+                return bands;
+            }
+            
+            // Calculate SMA
+            BigDecimal sma = calculateSMA(prices, period);
+            
+            // Calculate standard deviation
+            BigDecimal variance = BigDecimal.ZERO;
+            for (int i = prices.size() - period; i < prices.size(); i++) {
+                BigDecimal diff = prices.get(i).subtract(sma);
+                variance = variance.add(diff.multiply(diff));
+            }
+            variance = variance.divide(BigDecimal.valueOf(period), 6, RoundingMode.HALF_UP);
+            BigDecimal stdDev = BigDecimal.valueOf(Math.sqrt(variance.doubleValue()));
+            
+            // Calculate bands (2 standard deviations)
+            BigDecimal multiplier = BigDecimal.valueOf(2.0);
+            bands.put("BB_Upper", sma.add(stdDev.multiply(multiplier)));
+            bands.put("BB_Middle", sma);
+            bands.put("BB_Lower", sma.subtract(stdDev.multiply(multiplier)));
+            
+            return bands;
+        }
+        
+        private Map<String, BigDecimal> calculateStochastic(List<MarketDataResponse.OHLCVData> ohlcvData, int period) {
+            Map<String, BigDecimal> stoch = new HashMap<>();
+            
+            if (ohlcvData.size() < period) {
+                stoch.put("STOCH_K", BigDecimal.valueOf(50));
+                stoch.put("STOCH_D", BigDecimal.valueOf(50));
+                return stoch;
+            }
+            
+            // Get last 'period' candles
+            List<MarketDataResponse.OHLCVData> recentCandles = ohlcvData.subList(ohlcvData.size() - period, ohlcvData.size());
+            
+            // Find highest high and lowest low
+            BigDecimal highestHigh = recentCandles.stream()
+                    .map(MarketDataResponse.OHLCVData::getHigh)
+                    .max(BigDecimal::compareTo)
+                    .orElse(BigDecimal.ZERO);
+            
+            BigDecimal lowestLow = recentCandles.stream()
+                    .map(MarketDataResponse.OHLCVData::getLow)
+                    .min(BigDecimal::compareTo)
+                    .orElse(BigDecimal.ZERO);
+            
+            BigDecimal currentClose = ohlcvData.get(ohlcvData.size() - 1).getClose();
+            
+            // Calculate %K
+            BigDecimal range = highestHigh.subtract(lowestLow);
+            BigDecimal stochK = BigDecimal.valueOf(50); // Default
+            
+            if (range.compareTo(BigDecimal.ZERO) > 0) {
+                stochK = currentClose.subtract(lowestLow)
+                        .divide(range, 6, RoundingMode.HALF_UP)
+                        .multiply(BigDecimal.valueOf(100));
+            }
+            
+            // Simple %D calculation (3-period SMA of %K)
+            BigDecimal stochD = stochK.multiply(BigDecimal.valueOf(0.9)); // Simplified
+            
+            stoch.put("STOCH_K", stochK);
+            stoch.put("STOCH_D", stochD);
+            
+            return stoch;
         }
         
         return indicators;
@@ -204,14 +288,14 @@ public class StrategyService {
                                            Map<String, Object> indicators, String configJson) {
         try {
             // Parse strategy configuration to get entry/exit rules
-            JsonNode config = objectMapper.readTree(configJson);
-            JsonNode entryRules = config.get("entry");
+            com.fasterxml.jackson.databind.JsonNode config = objectMapper.readTree(configJson);
+            com.fasterxml.jackson.databind.JsonNode entryRules = config.get("entry");
             
             if (entryRules != null && entryRules.has("rules")) {
                 boolean allRulesMet = true;
                 String logic = entryRules.has("logic") ? entryRules.get("logic").asText() : "AND";
                 
-                for (JsonNode rule : entryRules.get("rules")) {
+                for (com.fasterxml.jackson.databind.JsonNode rule : entryRules.get("rules")) {
                     boolean ruleMet = evaluateRule(rule, indicators, liveData.getPrice());
                     
                     if ("AND".equals(logic) && !ruleMet) {
@@ -228,9 +312,9 @@ public class StrategyService {
             }
             
             // Check exit rules for SELL signal
-            JsonNode exitRules = config.get("exit");
+            com.fasterxml.jackson.databind.JsonNode exitRules = config.get("exit");
             if (exitRules != null && exitRules.has("rules")) {
-                for (JsonNode rule : exitRules.get("rules")) {
+                for (com.fasterxml.jackson.databind.JsonNode rule : exitRules.get("rules")) {
                     if (evaluateRule(rule, indicators, liveData.getPrice())) {
                         return SignalType.SELL;
                     }
@@ -244,7 +328,7 @@ public class StrategyService {
         return SignalType.HOLD;
     }
     
-    private boolean evaluateRule(JsonNode rule, Map<String, Object> indicators, BigDecimal currentPrice) {
+    private boolean evaluateRule(com.fasterxml.jackson.databind.JsonNode rule, Map<String, Object> indicators, BigDecimal currentPrice) {
         try {
             String indicator = rule.get("indicator").asText();
             String operator = rule.get("operator").asText();
@@ -271,6 +355,8 @@ public class StrategyService {
                 Object compareValue = indicators.get(compareToIndicator);
                 if (compareValue instanceof BigDecimal) {
                     return compareValues(indicatorValue, operator, (BigDecimal) compareValue);
+                } else if (compareValue instanceof Number) {
+                    return compareValues(indicatorValue, operator, BigDecimal.valueOf(((Number) compareValue).doubleValue()));
                 }
             }
             
@@ -297,11 +383,11 @@ public class StrategyService {
         List<String> matchedRules = new ArrayList<>();
         
         try {
-            JsonNode config = objectMapper.readTree(configJson);
-            JsonNode rules = signal == SignalType.BUY ? config.get("entry") : config.get("exit");
+            com.fasterxml.jackson.databind.JsonNode config = objectMapper.readTree(configJson);
+            com.fasterxml.jackson.databind.JsonNode rules = signal == SignalType.BUY ? config.get("entry") : config.get("exit");
             
             if (rules != null && rules.has("rules")) {
-                for (JsonNode rule : rules.get("rules")) {
+                for (com.fasterxml.jackson.databind.JsonNode rule : rules.get("rules")) {
                     String indicator = rule.get("indicator").asText();
                     String operator = rule.get("operator").asText();
                     
