@@ -5,6 +5,8 @@ import { useAuth } from './hooks/useAuth';
 import LoginPage from './pages/LoginPage';
 import RegisterPage from './pages/RegisterPage';
 import Dashboard from './pages/Dashboard';
+import StrategiesPage from './pages/StrategiesPage';
+import StrategyBuilderPage from './pages/StrategyBuilderPage';
 import LoadingSpinner from './components/LoadingSpinner';
 
 function AppRoutes() {
@@ -27,6 +29,18 @@ function AppRoutes() {
       <Route 
         path="/dashboard" 
         element={user ? <Dashboard /> : <Navigate to="/login" />} 
+      />
+      <Route 
+        path="/strategies" 
+        element={user ? <StrategiesPage /> : <Navigate to="/login" />} 
+      />
+      <Route 
+        path="/strategies/new" 
+        element={user ? <StrategyBuilderPage /> : <Navigate to="/login" />} 
+      />
+      <Route 
+        path="/strategies/:id/edit" 
+        element={user ? <StrategyBuilderPage /> : <Navigate to="/login" />} 
       />
       <Route 
         path="/" 

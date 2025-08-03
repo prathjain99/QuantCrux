@@ -1,4 +1,5 @@
 import React from 'react';
+import { Link } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
 import { UserRole } from '../services/authService';
 import { 
@@ -11,7 +12,8 @@ import {
   Activity,
   Clock,
   Users,
-  Settings
+  Settings,
+  Lock
 } from 'lucide-react';
 
 const Dashboard: React.FC = () => {
@@ -49,7 +51,7 @@ const Dashboard: React.FC = () => {
 
   const getModuleAccess = (role: UserRole) => {
     const allModules = [
-      { name: 'Strategy Builder', icon: Activity, description: 'Create and manage quantitative strategies' },
+      { name: 'Strategy Builder', icon: Activity, description: 'Create and manage quantitative strategies', path: '/strategies' },
       { name: 'Backtesting', icon: BarChart3, description: 'Historical strategy simulation and analysis' },
       { name: 'Product Builder', icon: Briefcase, description: 'Structured product creation and pricing' },
       { name: 'Trade Desk', icon: TrendingUp, description: 'Order execution and trade management' },
@@ -141,7 +143,119 @@ const Dashboard: React.FC = () => {
           <h3 className="text-xl font-semibold text-white mb-6">Available Modules</h3>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {accessibleModules.map((module, index) => (
-              <div
+              {module.path ? (
+                <Link
+                  to={module.path}
+                  key={index}
+                  className="bg-slate-900/50 backdrop-blur-sm rounded-xl border border-slate-700 p-6 hover:border-emerald-500/50 transition-all duration-300 cursor-pointer group block"
+                >
+                  <div className="flex items-start space-x-4">
+                    <div className="p-3 bg-emerald-500/10 rounded-lg group-hover:bg-emerald-500/20 transition-colors">
+                      <module.icon className="w-6 h-6 text-emerald-400" />
+                    </div>
+                    <div className="flex-1">
+                      <h4 className="text-lg font-semibold text-white mb-2 group-hover:text-emerald-400 transition-colors">
+                        {module.name}
+                      </h4>
+                      <p className="text-sm text-slate-400 leading-relaxed">
+                        {module.description}
+                      </p>
+                    </div>
+                  </div>
+                  
+                  <div className="mt-4 flex justify-end">
+                    <span className="text-xs text-emerald-400 font-medium">Available</span>
+                  </div>
+                </Link>
+              ) : (
+                <div
+                  key={index}
+                  className="bg-slate-900/50 backdrop-blur-sm rounded-xl border border-slate-700 p-6 hover:border-emerald-500/50 transition-all duration-300 cursor-pointer group"
+                >
+                  <div className="flex items-start space-x-4">
+                    <div className="p-3 bg-emerald-500/10 rounded-lg group-hover:bg-emerald-500/20 transition-colors">
+                      <module.icon className="w-6 h-6 text-emerald-400" />
+                    </div>
+                    <div className="flex-1">
+                      <h4 className="text-lg font-semibold text-white mb-2 group-hover:text-emerald-400 transition-colors">
+                        {module.name}
+                      </h4>
+                      <p className="text-sm text-slate-400 leading-relaxed">
+                        {module.description}
+                      </p>
+                    </div>
+                  </div>
+                  
+                  <div className="mt-4 flex justify-end">
+                    <span className="text-xs text-emerald-400 font-medium">Coming Soon</span>
+                  </div>
+                </div>
+              )}
+            ))}
+          </div>
+        </div>
+
+        {/* Quick Stats */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          <div className="bg-slate-900/50 backdrop-blur-sm rounded-xl border border-slate-700 p-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium text-slate-400">Account Status</p>
+                <p className="text-2xl font-bold text-emerald-400">Active</p>
+              </div>
+              <Shield className="w-8 h-8 text-emerald-400" />
+            </div>
+          </div>
+          
+          <div className="bg-slate-900/50 backdrop-blur-sm rounded-xl border border-slate-700 p-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium text-slate-400">Accessible Modules</p>
+                <p className="text-2xl font-bold text-blue-400">{accessibleModules.length}</p>
+              </div>
+              <Activity className="w-8 h-8 text-blue-400" />
+            </div>
+          </div>
+          
+          <div className="bg-slate-900/50 backdrop-blur-sm rounded-xl border border-slate-700 p-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium text-slate-400">Session Security</p>
+                <p className="text-2xl font-bold text-amber-400">Secure</p>
+              </div>
+              <Lock className="w-8 h-8 text-amber-400" />
+            </div>
+          </div>
+        </div>
+
+        {/* Next Steps */}
+        <div className="mt-8 bg-slate-900/30 backdrop-blur-sm rounded-xl border border-slate-700 p-6">
+          <h3 className="text-lg font-semibold text-white mb-4">Module Status</h3>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+            <div className="space-y-2">
+              <p className="text-emerald-400 font-medium">✅ Completed Modules:</p>
+              <ul className="text-slate-400 space-y-1 list-disc list-inside">
+                <li>Authentication & User Management</li>
+                <li>Strategy Builder - Create & test strategies</li>
+              </ul>
+            </div>
+            <div className="space-y-2">
+              <p className="text-blue-400 font-medium">🔄 Coming Next:</p>
+              <ul className="text-slate-400 space-y-1 list-disc list-inside">
+                <li>Backtesting Engine - Historical simulations</li>
+                <li>Product Builder - Structured products</li>
+                <li>Trade Desk - Order execution</li>
+                <li>Portfolio Management - Track holdings & P&L</li>
+              </ul>
+            </div>
+          </div>
+        </div>
+      </main>
+    </div>
+  );
+};
+
+export default Dashboard;
                 key={index}
                 className="bg-slate-900/50 backdrop-blur-sm rounded-xl border border-slate-700 p-6 hover:border-emerald-500/50 transition-all duration-300 cursor-pointer group"
               >
