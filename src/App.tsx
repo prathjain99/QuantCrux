@@ -17,6 +17,7 @@ import PortfoliosPage from './pages/PortfoliosPage';
 import PortfolioDetailsPage from './pages/PortfolioDetailsPage';
 import PortfolioBuilderPage from './pages/PortfolioBuilderPage';
 import TradeDeskPage from './pages/TradeDeskPage';
+import AnalyticsPage from './pages/AnalyticsPage';
 import LoadingSpinner from './components/LoadingSpinner';
 
 function AppRoutes() {
@@ -95,6 +96,10 @@ function AppRoutes() {
       <Route 
         path="/trade-desk" 
         element={user ? <TradeDeskPage /> : <Navigate to="/login" />} 
+      />
+      <Route 
+        path="/analytics" 
+        element={user ? <AnalyticsPage /> : <Navigate to="/login" />} 
       />
       <Route 
         path="/" 
