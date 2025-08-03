@@ -21,8 +21,9 @@ public class UserSession {
     @Column(name = "session_token", unique = true, nullable = false)
     private String sessionToken;
     
-    @Column(name = "ip_address")
+    @Column(name = "ip_address", columnDefinition = "inet")
     private String ipAddress;
+
     
     @Column(name = "user_agent", columnDefinition = "TEXT")
     private String userAgent;

@@ -3,8 +3,8 @@ spring:
     name: quantcrux-backend
   datasource:
     url: jdbc:postgresql://localhost:5432/quantcrux
-    username: postgres
-    password: postgres
+    username: quant_user
+    password: quant_pass
     driver-class-name: org.postgresql.Driver
   jpa:
     hibernate:
