@@ -154,7 +154,7 @@ public class BacktestService {
             backtestRepository.save(backtest);
             
             // Load historical market data
-            List<MarketData> marketData = loadMarketData(backtest);
+            List<MarketDataResponse.OHLCVData> marketData = loadHistoricalMarketData(backtest);
             if (marketData.isEmpty()) {
                 throw new RuntimeException("No market data available for the specified period");
             }
