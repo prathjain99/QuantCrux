@@ -73,18 +73,6 @@ function AppRoutes() {
         element={user ? <ProductDetailsPage /> : <Navigate to="/login" />} 
       />
       <Route 
-        path="/products/new" 
-        element={user ? <ProductBuilderPage /> : <Navigate to="/login" />} 
-      />
-      <Route 
-        path="/products/:id/edit" 
-        element={user ? <ProductBuilderPage /> : <Navigate to="/login" />} 
-      />
-      <Route 
-        path="/products/:id" 
-        element={user ? <ProductDetailsPage /> : <Navigate to="/login" />} 
-      />
-      <Route 
         path="/" 
         element={<Navigate to={user ? "/dashboard" : "/login"} />} 
       />
