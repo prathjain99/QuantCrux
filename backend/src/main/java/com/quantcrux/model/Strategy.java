@@ -3,9 +3,10 @@ package com.quantcrux.model;
 import jakarta.persistence.*;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
 import org.hibernate.annotations.CreationTimestamp;
 import org.hibernate.annotations.UpdateTimestamp;
-import org.hibernate.annotations.Type;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -38,7 +39,8 @@ public class Strategy {
     private String timeframe = "1m";
     
     @NotNull
-    @Column(name = "config_json", nullable = false, columnDefinition = "jsonb")
+    @Column(name = "config_json", nullable = false)
+    @JdbcTypeCode(SqlTypes.JSON)
     private String configJson;
     
     @Enumerated(EnumType.STRING)

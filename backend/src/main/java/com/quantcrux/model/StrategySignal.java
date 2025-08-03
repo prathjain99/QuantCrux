@@ -1,6 +1,8 @@
 package com.quantcrux.model;
 
 import jakarta.persistence.*;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
 import org.hibernate.annotations.CreationTimestamp;
 
 import java.math.BigDecimal;
@@ -27,7 +29,8 @@ public class StrategySignal {
     @Column(precision = 15, scale = 6)
     private BigDecimal price;
     
-    @Column(name = "indicator_values", columnDefinition = "jsonb")
+    @Column(name = "indicator_values")
+    @JdbcTypeCode(SqlTypes.JSON)
     private String indicatorValues;
     
     @ElementCollection
