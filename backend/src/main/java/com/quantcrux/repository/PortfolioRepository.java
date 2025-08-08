@@ -42,7 +42,7 @@ public interface PortfolioRepository extends JpaRepository<Portfolio, UUID> {
     
     @Query("SELECT p FROM Portfolio p WHERE p.id = :id AND (p.owner = :user OR p.manager = :user)")
     Optional<Portfolio> findByIdAndUser(@Param("id") UUID id, @Param("user") User user);
-    
+    //query
     @Query("SELECT SUM(p.currentNav) FROM Portfolio p WHERE p.owner = :user AND p.status = 'ACTIVE'")
     BigDecimal getTotalNavByOwner(@Param("user") User user);
     
