@@ -23,3 +23,21 @@ dist-ssr
 *.sln
 *.sw?
 .env
+
+
+# Maven/Gradle build output
+target/
+build/
+
+# IDE files
+.idea/
+*.iml
+.classpath
+.project
+.settings/
+
+# Compiled files
+*.class
+*.jar
+*.war
+*.ear
