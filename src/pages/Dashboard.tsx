@@ -229,28 +229,6 @@ const Dashboard: React.FC = () => {
           </div>
         </div>
 
-        {/* Next Steps */}
-        <div className="mt-8 bg-slate-900/30 backdrop-blur-sm rounded-xl border border-slate-700 p-6">
-          <h3 className="text-lg font-semibold text-white mb-4">Module Status</h3>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
-            <div className="space-y-2">
-              <p className="text-emerald-400 font-medium">✅ Completed Modules:</p>
-              <ul className="text-slate-400 space-y-1 list-disc list-inside">
-                <li>Authentication & User Management</li>
-                <li>Strategy Builder - Create & test strategies</li>
-              </ul>
-            </div>
-            <div className="space-y-2">
-              <p className="text-blue-400 font-medium">🔄 Coming Next:</p>
-              <ul className="text-slate-400 space-y-1 list-disc list-inside">
-                <li>Backtesting Engine - Historical simulations</li>
-                <li>Product Builder - Structured products</li>
-                <li>Trade Desk - Order execution</li>
-                <li>Portfolio Management - Track holdings & P&L</li>
-              </ul>
-            </div>
-          </div>
-        </div>
       </main>
     </div>
   );
